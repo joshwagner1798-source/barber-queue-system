@@ -411,6 +411,145 @@ export type Database = {
           created_at?: string
         }
       }
+      walkins: {
+        Row: {
+          id: string
+          shop_id: string
+          created_at: string
+          service_type: string
+          preference_type: 'ANY' | 'PREFERRED' | 'FASTEST'
+          preferred_barber_id: string | null
+          status: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
+          position: number
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          created_at?: string
+          service_type?: string
+          preference_type?: 'ANY' | 'PREFERRED' | 'FASTEST'
+          preferred_barber_id?: string | null
+          status?: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
+          position?: number
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          created_at?: string
+          service_type?: string
+          preference_type?: 'ANY' | 'PREFERRED' | 'FASTEST'
+          preferred_barber_id?: string | null
+          status?: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
+          position?: number
+          notes?: string | null
+          updated_at?: string
+        }
+      }
+      barber_state: {
+        Row: {
+          shop_id: string
+          barber_id: string
+          state: 'AVAILABLE' | 'IN_CHAIR' | 'ON_BREAK' | 'OFF' | 'CLEANUP' | 'OTHER'
+          state_since: string
+          manual_free_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          shop_id: string
+          barber_id: string
+          state?: 'AVAILABLE' | 'IN_CHAIR' | 'ON_BREAK' | 'OFF' | 'CLEANUP' | 'OTHER'
+          state_since?: string
+          manual_free_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          shop_id?: string
+          barber_id?: string
+          state?: 'AVAILABLE' | 'IN_CHAIR' | 'ON_BREAK' | 'OFF' | 'CLEANUP' | 'OTHER'
+          state_since?: string
+          manual_free_at?: string | null
+          updated_at?: string
+        }
+      }
+      assignments: {
+        Row: {
+          id: string
+          shop_id: string
+          walkin_id: string
+          barber_id: string
+          started_at: string
+          ended_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          walkin_id: string
+          barber_id: string
+          started_at?: string
+          ended_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          walkin_id?: string
+          barber_id?: string
+          started_at?: string
+          ended_at?: string | null
+          created_at?: string
+        }
+      }
+      events: {
+        Row: {
+          id: string
+          shop_id: string
+          type: string
+          actor_user_id: string | null
+          payload: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          type: string
+          actor_user_id?: string | null
+          payload?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          type?: string
+          actor_user_id?: string | null
+          payload?: Json
+          created_at?: string
+        }
+      }
+      shop_state_projection: {
+        Row: {
+          shop_id: string
+          revision: number
+          snapshot: Json
+          updated_at: string
+        }
+        Insert: {
+          shop_id: string
+          revision?: number
+          snapshot?: Json
+          updated_at?: string
+        }
+        Update: {
+          shop_id?: string
+          revision?: number
+          snapshot?: Json
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -458,3 +597,23 @@ export type ShopUpdate = Database['public']['Tables']['shops']['Update']
 export type UserUpdate = Database['public']['Tables']['users']['Update']
 export type ServiceUpdate = Database['public']['Tables']['services']['Update']
 export type AppointmentUpdate = Database['public']['Tables']['appointments']['Update']
+
+// Walk-in truth layer types
+export type Walkin = Database['public']['Tables']['walkins']['Row']
+export type WalkinInsert = Database['public']['Tables']['walkins']['Insert']
+export type WalkinUpdate = Database['public']['Tables']['walkins']['Update']
+
+export type BarberState = Database['public']['Tables']['barber_state']['Row']
+export type BarberStateInsert = Database['public']['Tables']['barber_state']['Insert']
+export type BarberStateUpdate = Database['public']['Tables']['barber_state']['Update']
+
+export type Assignment = Database['public']['Tables']['assignments']['Row']
+export type AssignmentInsert = Database['public']['Tables']['assignments']['Insert']
+export type AssignmentUpdate = Database['public']['Tables']['assignments']['Update']
+
+export type WalkinEvent = Database['public']['Tables']['events']['Row']
+export type WalkinEventInsert = Database['public']['Tables']['events']['Insert']
+
+export type ShopStateProjection = Database['public']['Tables']['shop_state_projection']['Row']
+export type ShopStateProjectionInsert = Database['public']['Tables']['shop_state_projection']['Insert']
+export type ShopStateProjectionUpdate = Database['public']['Tables']['shop_state_projection']['Update']
