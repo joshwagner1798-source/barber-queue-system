@@ -79,6 +79,7 @@ export type Database = {
           display_order: number
           email_notifications: boolean
           sms_notifications: boolean
+          acuity_calendar_id: string | null
           created_at: string
           updated_at: string
         }
@@ -98,6 +99,7 @@ export type Database = {
           display_order?: number
           email_notifications?: boolean
           sms_notifications?: boolean
+          acuity_calendar_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -117,6 +119,7 @@ export type Database = {
           display_order?: number
           email_notifications?: boolean
           sms_notifications?: boolean
+          acuity_calendar_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -422,6 +425,10 @@ export type Database = {
           status: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
           position: number
           notes: string | null
+          client_id: string | null
+          display_name: string | null
+          assigned_barber_id: string | null
+          called_at: string | null
           updated_at: string
         }
         Insert: {
@@ -434,6 +441,10 @@ export type Database = {
           status?: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
           position?: number
           notes?: string | null
+          client_id?: string | null
+          display_name?: string | null
+          assigned_barber_id?: string | null
+          called_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -446,6 +457,71 @@ export type Database = {
           status?: 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'NO_SHOW' | 'DONE' | 'REMOVED'
           position?: number
           notes?: string | null
+          client_id?: string | null
+          display_name?: string | null
+          assigned_barber_id?: string | null
+          called_at?: string | null
+          updated_at?: string
+        }
+      }
+      clients: {
+        Row: {
+          id: string
+          shop_id: string
+          first_name: string
+          last_initial: string
+          phone: string
+          display_name: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          first_name: string
+          last_initial: string
+          phone: string
+          display_name: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          first_name?: string
+          last_initial?: string
+          phone?: string
+          display_name?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      barber_status: {
+        Row: {
+          shop_id: string
+          barber_id: string
+          status: 'FREE' | 'BUSY' | 'UNAVAILABLE' | 'OFF' | 'UNKNOWN'
+          status_detail: string | null
+          free_at: string | null
+          last_synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          shop_id: string
+          barber_id: string
+          status?: 'FREE' | 'BUSY' | 'UNAVAILABLE' | 'OFF' | 'UNKNOWN'
+          status_detail?: string | null
+          free_at?: string | null
+          last_synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          shop_id?: string
+          barber_id?: string
+          status?: 'FREE' | 'BUSY' | 'UNAVAILABLE' | 'OFF' | 'UNKNOWN'
+          status_detail?: string | null
+          free_at?: string | null
+          last_synced_at?: string
           updated_at?: string
         }
       }
@@ -617,3 +693,11 @@ export type WalkinEventInsert = Database['public']['Tables']['events']['Insert']
 export type ShopStateProjection = Database['public']['Tables']['shop_state_projection']['Row']
 export type ShopStateProjectionInsert = Database['public']['Tables']['shop_state_projection']['Insert']
 export type ShopStateProjectionUpdate = Database['public']['Tables']['shop_state_projection']['Update']
+
+// Kiosk layer types
+export type Client = Database['public']['Tables']['clients']['Row']
+export type ClientInsert = Database['public']['Tables']['clients']['Insert']
+
+export type BarberStatusRow = Database['public']['Tables']['barber_status']['Row']
+export type BarberStatusInsert = Database['public']['Tables']['barber_status']['Insert']
+export type BarberStatusUpdate = Database['public']['Tables']['barber_status']['Update']

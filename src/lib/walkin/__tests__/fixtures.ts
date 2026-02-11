@@ -149,6 +149,10 @@ export function walkin(
     status: 'WAITING',
     position,
     notes: null,
+    client_id: null,
+    display_name: null,
+    assigned_barber_id: null,
+    called_at: null,
     updated_at: NOW_ISO,
     ...overrides,
   }
