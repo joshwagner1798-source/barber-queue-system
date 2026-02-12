@@ -1,66 +1,29 @@
 'use server'
+import type { KioskSubmitInput, KioskSubmitResult, KioskLookupResult } from "./types"
 
+import { sanitizePhone } from "./helpers"
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getNextQueuePosition } from '@/lib/walkin/helpers'
 import { validateWalkinTransition } from '@/lib/walkin/validation'
-import { appendEvent, WALKIN_ADDED, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
+import { appendEvent, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
 
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 
 // ---------------------------------------------------------------------------
-// Types
+// Submit walk-in (single atomic RPC)
 // ---------------------------------------------------------------------------
 
-export interface KioskSubmitInput {
-  firstName: string
-  lastInitial: string
-  phone: string
-  preferenceType: 'ANY' | 'PREFERRED'
-  preferredBarberId: string | null
+interface JoinQueueResult {
+  already_active: boolean
+  walkin_id: string
+  status?: string
+  position: number
+  display_name: string
+  assigned_barber_id?: string | null
+  assigned_barber_name?: string | null
 }
-
-export interface KioskSubmitResult {
-  success: boolean
-  walkinId?: string
-  position?: number
-  displayName?: string
-  existingStatus?: string
-  existingPosition?: number
-  assignedBarberName?: string | null
-  error?: string
-}
-
-export interface KioskLookupResult {
-  found: boolean
-  walkin?: {
-    id: string
-    status: string
-    position: number
-    displayName: string
-    assignedBarberName: string | null
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
-
-export function sanitizePhone(raw: string): string {
-  return raw.replace(/\D/g, '')
-}
-
-export function buildDisplayName(firstName: string, lastInitial: string): string {
-  const name = firstName.trim().charAt(0).toUpperCase() + firstName.trim().slice(1).toLowerCase()
-  const initial = lastInitial.trim().charAt(0).toUpperCase()
-  return `${name} ${initial}.`
-}
-
-// ---------------------------------------------------------------------------
-// Submit walk-in
-// ---------------------------------------------------------------------------
 
 export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmitResult> {
-  // Validate
+  // Client-side validation (fast-fail before DB round trip)
   const firstName = input.firstName.trim()
   if (!firstName || firstName.length < 1) {
     return { success: false, error: 'First name is required' }
@@ -80,149 +43,40 @@ export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmit
     return { success: false, error: 'Select a barber or choose First Available' }
   }
 
-  const displayName = buildDisplayName(firstName, lastInitial)
   const admin = createAdminClient()
 
-  // -----------------------------------------------------------------------
-  // 1. Upsert client by phone (find or create)
-  // -----------------------------------------------------------------------
-  const { data: existingClient } = await admin
-    .from('clients')
-    .select('id')
-    .eq('shop_id', SHOP_ID)
-    .eq('phone', phone)
-    .single()
+  const { data, error } = await admin.rpc('join_walkin_queue', {
+    p_shop_id: SHOP_ID,
+    p_first_name: firstName,
+    p_last_initial: lastInitial,
+    p_phone: phone,
+    p_preference_type: input.preferenceType,
+    p_preferred_barber_id: input.preferredBarberId ?? null,
+  })
 
-  type ClientRow = { id: string }
-  let clientId: string
-
-  if (existingClient) {
-    clientId = (existingClient as unknown as ClientRow).id
-    // Update name in case it changed
-    await admin
-      .from('clients')
-      // @ts-expect-error — Supabase generated types resolve update param to never
-      .update({
-        first_name: firstName,
-        last_initial: lastInitial.toUpperCase(),
-        display_name: displayName,
-      })
-      .eq('id', clientId)
-  } else {
-    const { data: newClient, error: insertErr } = await admin
-      .from('clients')
-      // @ts-expect-error — Supabase generated types resolve insert param to never
-      .insert({
-        shop_id: SHOP_ID,
-        first_name: firstName,
-        last_initial: lastInitial.toUpperCase(),
-        phone,
-        display_name: displayName,
-      })
-      .select('id')
-      .single()
-
-    if (insertErr || !newClient) {
-      return { success: false, error: 'Failed to create client record' }
-    }
-    clientId = (newClient as unknown as ClientRow).id
-  }
-
-  // -----------------------------------------------------------------------
-  // 2. Check for duplicate active entry
-  // -----------------------------------------------------------------------
-  const { data: activeWalkin } = await admin
-    .from('walkins')
-    .select('id, status, position, display_name, assigned_barber_id')
-    .eq('shop_id', SHOP_ID)
-    .eq('client_id', clientId)
-    .in('status', ['WAITING', 'CALLED', 'IN_SERVICE'])
-    .limit(1)
-
-  type ActiveRow = {
-    id: string
-    status: string
-    position: number
-    display_name: string | null
-    assigned_barber_id: string | null
-  }
-  const active = (activeWalkin ?? []) as unknown as ActiveRow[]
-
-  if (active.length > 0) {
-    const entry = active[0]
-
-    // Look up barber name if assigned
-    let assignedBarberName: string | null = null
-    if (entry.assigned_barber_id) {
-      const { data: barber } = await admin
-        .from('users')
-        .select('first_name, last_name')
-        .eq('id', entry.assigned_barber_id)
-        .single()
-      type BRow = { first_name: string; last_name: string }
-      if (barber) {
-        const b = barber as unknown as BRow
-        assignedBarberName = `${b.first_name} ${b.last_name}`
-      }
-    }
-
-    return {
-      success: true,
-      walkinId: entry.id,
-      existingStatus: entry.status,
-      existingPosition: entry.position,
-      displayName: entry.display_name ?? displayName,
-      assignedBarberName,
-    }
-  }
-
-  // -----------------------------------------------------------------------
-  // 3. Create new walk-in entry
-  // -----------------------------------------------------------------------
-  const position = await getNextQueuePosition(admin, SHOP_ID)
-
-  const { data: walkin, error: walkinErr } = await admin
-    .from('walkins')
-    // @ts-expect-error — Supabase generated types resolve insert param to never
-    .insert({
-      shop_id: SHOP_ID,
-      client_id: clientId,
-      display_name: displayName,
-      service_type: 'cut',
-      preference_type: input.preferenceType,
-      preferred_barber_id: input.preferredBarberId,
-      status: 'WAITING',
-      position,
-    })
-    .select('id')
-    .single()
-
-  if (walkinErr || !walkin) {
+  if (error) {
+    console.error('join_walkin_queue error:', error)
     return { success: false, error: 'Failed to join queue' }
   }
 
-  type WRow = { id: string }
-  const walkinId = (walkin as unknown as WRow).id
+  const result = data as unknown as JoinQueueResult
 
-  // Append event
-  await appendEvent(admin, {
-    shop_id: SHOP_ID,
-    type: WALKIN_ADDED,
-    actor_user_id: null,
-    payload: {
-      walkin_id: walkinId,
-      display_name: displayName,
-      preference_type: input.preferenceType,
-      preferred_barber_id: input.preferredBarberId,
-      position,
-    },
-  })
+  if (result.already_active) {
+    return {
+      success: true,
+      walkinId: result.walkin_id,
+      existingStatus: result.status,
+      existingPosition: result.position,
+      displayName: result.display_name,
+      assignedBarberName: result.assigned_barber_name ?? null,
+    }
+  }
 
   return {
     success: true,
-    walkinId,
-    position,
-    displayName,
+    walkinId: result.walkin_id,
+    position: result.position,
+    displayName: result.display_name,
   }
 }
 

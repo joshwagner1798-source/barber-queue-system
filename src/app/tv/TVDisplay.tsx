@@ -24,6 +24,7 @@ interface TVWalkin {
   display_name: string | null
   position: number
   assigned_barber_id: string | null
+  assigned_barber_name: string | null
   called_at: string | null
   preference_type: string
   preferred_barber_id: string | null
@@ -33,6 +34,7 @@ interface TVBarber {
   id: string
   first_name: string
   last_name: string
+  display_name: string
   avatar_url: string | null
   display_order: number
 }
@@ -46,10 +48,10 @@ export function TVDisplay() {
   const [walkins, setWalkins] = useState<TVWalkin[]>([])
   const [barbers, setBarbers] = useState<TVBarber[]>([])
 
-  // Build name lookup
+  // Build name lookup from view-provided display_name
   const barberNames = new Map<string, string>()
   for (const b of barbers) {
-    barberNames.set(b.id, `${b.first_name} ${b.last_name}`)
+    barberNames.set(b.id, b.display_name)
   }
 
   // Fetch all data from /api/tv
@@ -139,7 +141,7 @@ export function TVDisplay() {
     .map((w) => ({
       id: w.id,
       displayName: w.display_name ?? 'Guest',
-      barberName: barberNames.get(w.assigned_barber_id!) ?? 'Barber',
+      barberName: w.assigned_barber_name ?? barberNames.get(w.assigned_barber_id!) ?? 'Barber',
       status: w.status as 'CALLED' | 'IN_SERVICE',
     }))
 
@@ -160,7 +162,7 @@ export function TVDisplay() {
             return (
               <BarberStatusCard
                 key={b.id}
-                barberName={`${b.first_name} ${b.last_name}`}
+                barberName={b.display_name}
                 status={bs?.status ?? 'UNKNOWN'}
                 statusDetail={bs?.status_detail ?? null}
                 freeAt={bs?.free_at ?? null}

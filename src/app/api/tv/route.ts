@@ -11,20 +11,15 @@ export async function GET() {
     admin.from('barber_status').select('*').eq('shop_id', SHOP_ID),
 
     admin
-      .from('walkins')
-      .select(
-        'id, status, display_name, position, assigned_barber_id, called_at, preference_type, preferred_barber_id, service_type, created_at',
-      )
+      .from('public_walkins')
+      .select('*')
       .eq('shop_id', SHOP_ID)
-      .in('status', ['WAITING', 'CALLED', 'IN_SERVICE'])
       .order('position', { ascending: true }),
 
     admin
-      .from('users')
-      .select('id, first_name, last_name, avatar_url, display_order')
+      .from('public_barbers')
+      .select('*')
       .eq('shop_id', SHOP_ID)
-      .eq('role', 'barber')
-      .eq('is_active', true)
       .order('display_order', { ascending: true }),
   ])
 
