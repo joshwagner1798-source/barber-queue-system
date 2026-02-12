@@ -7,7 +7,7 @@ export default function Home() {
       <header className="container mx-auto px-4 py-6">
         <nav className="flex items-center justify-between">
           <div className="text-2xl font-bold text-white">
-            BarberShop
+            Sharper Image
           </div>
           <div className="flex items-center gap-4">
             <Link
@@ -94,7 +94,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="container mx-auto px-4 py-12 mt-20 border-t border-secondary-800">
         <div className="text-center text-secondary-500">
-          <p>&copy; {new Date().getFullYear()} BarberShop. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Sharper Image. All rights reserved.</p>
         </div>
       </footer>
     </div>
