@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { BarberStatusCard } from './BarberStatusCard'
 import { WaitingList } from './WaitingList'
 import { NowServing } from './NowServing'
@@ -72,9 +73,25 @@ export function TVDisplay() {
     fetchData()
   }, [fetchData])
 
-  // Poll every 3s for live updates
+  // Realtime broadcast subscription
   useEffect(() => {
-    const interval = setInterval(fetchData, 3_000)
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel('shop:00000000-0000-0000-0000-000000000001:tv')
+      .on('broadcast', { event: 'refresh' }, () => {
+        fetchData()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchData])
+
+  // 60s safety-net in case a broadcast is missed
+  useEffect(() => {
+    const interval = setInterval(fetchData, 60_000)
     return () => clearInterval(interval)
   }, [fetchData])
 

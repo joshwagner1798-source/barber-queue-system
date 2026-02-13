@@ -7,6 +7,15 @@ import { validateWalkinTransition } from '@/lib/walkin/validation'
 import { appendEvent, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
 
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
+const TV_CHANNEL = `shop:${SHOP_ID}:tv`
+
+async function broadcastTVRefresh() {
+  const admin = createAdminClient()
+  const channel = admin.channel(TV_CHANNEL)
+  await channel.subscribe()
+  await channel.send({ type: 'broadcast', event: 'refresh', payload: { shopId: SHOP_ID } })
+  admin.removeChannel(channel)
+}
 
 // ---------------------------------------------------------------------------
 // Submit walk-in (single atomic RPC)
@@ -72,6 +81,8 @@ export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmit
     }
   }
 
+  await broadcastTVRefresh()
+
   return {
     success: true,
     walkinId: result.walkin_id,
@@ -112,6 +123,8 @@ export async function checkInWalkin(
     actor_user_id: null,
     payload: { walkin_id: walkinId, from: 'CALLED', to: 'IN_SERVICE', source: 'kiosk_checkin' },
   })
+
+  await broadcastTVRefresh()
 
   return { success: true }
 }
