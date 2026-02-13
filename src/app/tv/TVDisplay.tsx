@@ -74,15 +74,17 @@ export function TVDisplay() {
   }, [fetchData])
 
   // Realtime postgres_changes — patch state directly, no refetch
+  // tv_walkins: anon-readable mirror table (synced via trigger)
+  // barber_status: already has anon SELECT policy
+  // Both are in the supabase_realtime publication.
   useEffect(() => {
     const supabase = createClient()
-    const ACTIVE = new Set(['WAITING', 'CALLED', 'IN_SERVICE'])
 
     const channel = supabase
       .channel('tv-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'walkins' },
+        { event: '*', schema: 'public', table: 'tv_walkins' },
         (payload) => {
           const { eventType, new: newRow, old: oldRow } = payload
 
@@ -92,7 +94,6 @@ export function TVDisplay() {
             return
           }
 
-          // INSERT or UPDATE
           const row = newRow as Record<string, unknown>
           if (!row?.id) return
 
@@ -106,12 +107,6 @@ export function TVDisplay() {
             called_at: (row.called_at as string) ?? null,
             preference_type: row.preference_type as string,
             preferred_barber_id: (row.preferred_barber_id as string) ?? null,
-          }
-
-          if (!ACTIVE.has(entry.status)) {
-            // Status left the active set — remove from state
-            setWalkins((prev) => prev.filter((w) => w.id !== entry.id))
-            return
           }
 
           setWalkins((prev) => {
