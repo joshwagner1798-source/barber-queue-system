@@ -73,21 +73,98 @@ export function TVDisplay() {
     fetchData()
   }, [fetchData])
 
-  // Realtime broadcast subscription
+  // Realtime postgres_changes — patch state directly, no refetch
   useEffect(() => {
     const supabase = createClient()
+    const ACTIVE = new Set(['WAITING', 'CALLED', 'IN_SERVICE'])
 
     const channel = supabase
-      .channel('shop:00000000-0000-0000-0000-000000000001:tv')
-      .on('broadcast', { event: 'refresh' }, () => {
-        fetchData()
-      })
+      .channel('tv-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'walkins' },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload
+
+          if (eventType === 'DELETE') {
+            const id = (oldRow as { id?: string })?.id
+            if (id) setWalkins((prev) => prev.filter((w) => w.id !== id))
+            return
+          }
+
+          // INSERT or UPDATE
+          const row = newRow as Record<string, unknown>
+          if (!row?.id) return
+
+          const entry: TVWalkin = {
+            id: row.id as string,
+            status: row.status as string,
+            display_name: (row.display_name as string) ?? null,
+            position: row.position as number,
+            assigned_barber_id: (row.assigned_barber_id as string) ?? null,
+            assigned_barber_name: null, // resolved from barberNames during render
+            called_at: (row.called_at as string) ?? null,
+            preference_type: row.preference_type as string,
+            preferred_barber_id: (row.preferred_barber_id as string) ?? null,
+          }
+
+          if (!ACTIVE.has(entry.status)) {
+            // Status left the active set — remove from state
+            setWalkins((prev) => prev.filter((w) => w.id !== entry.id))
+            return
+          }
+
+          setWalkins((prev) => {
+            const idx = prev.findIndex((w) => w.id === entry.id)
+            if (idx >= 0) {
+              const next = [...prev]
+              next[idx] = entry
+              return next
+            }
+            return [...prev, entry]
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'barber_status' },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload
+
+          if (eventType === 'DELETE') {
+            const barberId = (oldRow as { barber_id?: string })?.barber_id
+            if (barberId) setStatuses((prev) => prev.filter((s) => s.barber_id !== barberId))
+            return
+          }
+
+          const row = newRow as Record<string, unknown>
+          if (!row?.barber_id) return
+
+          const entry: TVBarberStatus = {
+            shop_id: row.shop_id as string,
+            barber_id: row.barber_id as string,
+            status: row.status as string,
+            status_detail: (row.status_detail as string) ?? null,
+            free_at: (row.free_at as string) ?? null,
+          }
+
+          setStatuses((prev) => {
+            const idx = prev.findIndex((s) => s.barber_id === entry.barber_id)
+            if (idx >= 0) {
+              const next = [...prev]
+              next[idx] = entry
+              return next
+            }
+            return [...prev, entry]
+          })
+        },
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchData])
+  }, [])
 
   // 60s safety-net in case a broadcast is missed
   useEffect(() => {
