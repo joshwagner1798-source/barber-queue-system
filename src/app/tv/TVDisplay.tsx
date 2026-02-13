@@ -86,6 +86,7 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tv_walkins' },
         (payload) => {
+          console.log('[RT] tv_walkins', new Date().toISOString(), payload.eventType)
           const { eventType, new: newRow, old: oldRow } = payload
 
           if (eventType === 'DELETE') {
@@ -124,6 +125,7 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'barber_status' },
         (payload) => {
+          console.log('[RT] barber_status', new Date().toISOString(), payload.eventType)
           const { eventType, new: newRow, old: oldRow } = payload
 
           if (eventType === 'DELETE') {
@@ -154,7 +156,7 @@ export function TVDisplay() {
           })
         },
       )
-      .subscribe()
+      .subscribe((status) => console.log('[RT] status', status))
 
     return () => {
       supabase.removeChannel(channel)
