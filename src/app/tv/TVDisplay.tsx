@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { BarberStatusCard } from './BarberStatusCard'
 import { WaitingList } from './WaitingList'
 import { NowServing } from './NowServing'
@@ -57,7 +56,7 @@ export function TVDisplay() {
   // Fetch all data from /api/tv
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv')
+      const res = await fetch('/api/tv', { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       setStatuses(data.barber_statuses ?? [])
@@ -73,38 +72,9 @@ export function TVDisplay() {
     fetchData()
   }, [fetchData])
 
-  // Realtime subscriptions
+  // Poll every 3s for live updates
   useEffect(() => {
-    const supabase = createClient()
-
-    const channel = supabase
-      .channel('tv-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'barber_status' },
-        () => {
-          // Refetch on any barber_status change
-          fetchData()
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'walkins' },
-        () => {
-          // Refetch on any walkins change
-          fetchData()
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [fetchData])
-
-  // 60s safety-net full refresh
-  useEffect(() => {
-    const interval = setInterval(fetchData, 60_000)
+    const interval = setInterval(fetchData, 3_000)
     return () => clearInterval(interval)
   }, [fetchData])
 

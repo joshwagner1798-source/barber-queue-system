@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export const dynamic = 'force-dynamic'
+
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 
-/** TV initial load — returns only display-safe data (no phone, no client_id). */
+/** TV live data — returns only display-safe data (no phone, no client_id). */
 export async function GET() {
   const admin = createAdminClient()
 
@@ -23,9 +25,14 @@ export async function GET() {
       .order('display_order', { ascending: true }),
   ])
 
-  return NextResponse.json({
-    barber_statuses: statusResult.data ?? [],
-    walkins: walkinsResult.data ?? [],
-    barbers: barbersResult.data ?? [],
-  })
+  return NextResponse.json(
+    {
+      barber_statuses: statusResult.data ?? [],
+      walkins: walkinsResult.data ?? [],
+      barbers: barbersResult.data ?? [],
+    },
+    {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    },
+  )
 }
