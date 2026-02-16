@@ -7,8 +7,10 @@
 
 -- =============================================
 -- 1. public_barbers — active barbers with computed display_name
+--    DROP first because column order changed from 00005 definition
 -- =============================================
-CREATE OR REPLACE VIEW public_barbers AS
+DROP VIEW IF EXISTS public_barbers;
+CREATE VIEW public_barbers AS
 SELECT
   u.id,
   u.shop_id,
@@ -23,8 +25,10 @@ WHERE u.role = 'barber'
 
 -- =============================================
 -- 2. public_walkins — active queue entries with assigned barber name
+--    DROP first because column list changed from 00005 definition
 -- =============================================
-CREATE OR REPLACE VIEW public_walkins AS
+DROP VIEW IF EXISTS public_walkins;
+CREATE VIEW public_walkins AS
 SELECT
   w.id,
   w.shop_id,
