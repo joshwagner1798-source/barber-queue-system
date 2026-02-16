@@ -74,9 +74,9 @@ export function TVDisplay() {
   }, [fetchData])
 
   // Realtime postgres_changes — patch state directly, no refetch
-  // tv_walkins: anon-readable mirror table (synced via trigger)
-  // barber_status: already has anon SELECT policy
-  // Both are in the supabase_realtime publication.
+  // tv_walkins: anon-readable mirror of walkins (synced via trigger)
+  // tv_barber_status: anon-readable mirror of barber_status (synced via trigger)
+  // Both have REPLICA IDENTITY FULL and are in supabase_realtime publication.
   useEffect(() => {
     const supabase = createClient()
 
@@ -123,9 +123,9 @@ export function TVDisplay() {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'barber_status' },
+        { event: '*', schema: 'public', table: 'tv_barber_status' },
         (payload) => {
-          console.log('[TV REALTIME EVENT] barber_status', payload)
+          console.log('[TV REALTIME EVENT] tv_barber_status', payload)
           const { eventType, new: newRow, old: oldRow } = payload
 
           if (eventType === 'DELETE') {
