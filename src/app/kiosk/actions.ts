@@ -1,5 +1,7 @@
 'use server'
 
+import { sanitizePhone, buildDisplayName } from "@/lib/kiosk/utils"
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNextQueuePosition } from '@/lib/walkin/helpers'
 import { validateWalkinTransition } from '@/lib/walkin/validation'
@@ -43,21 +45,6 @@ export interface KioskLookupResult {
 
 // ---------------------------------------------------------------------------
 // Validation helpers
-// ---------------------------------------------------------------------------
-
-export function sanitizePhone(raw: string): string {
-  return raw.replace(/\D/g, '')
-}
-
-export function buildDisplayName(firstName: string, lastInitial: string): string {
-  const name = firstName.trim().charAt(0).toUpperCase() + firstName.trim().slice(1).toLowerCase()
-  const initial = lastInitial.trim().charAt(0).toUpperCase()
-  return `${name} ${initial}.`
-}
-
-// ---------------------------------------------------------------------------
-// Submit walk-in
-// ---------------------------------------------------------------------------
 
 export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmitResult> {
   // Validate
