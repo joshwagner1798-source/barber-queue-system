@@ -61,12 +61,12 @@ BEGIN
     INSERT INTO tv_walkins (
       id, shop_id, status, position, display_name,
       preference_type, preferred_barber_id, assigned_barber_id,
-      called_at, service_type, created_at
+      called_at
     )
     VALUES (
       NEW.id, NEW.shop_id, NEW.status, NEW.position, NEW.display_name,
       NEW.preference_type, NEW.preferred_barber_id, NEW.assigned_barber_id,
-      NEW.called_at, NEW.service_type, NEW.created_at
+      NEW.called_at
     )
     ON CONFLICT (id) DO UPDATE SET
       status              = EXCLUDED.status,
@@ -75,8 +75,7 @@ BEGIN
       preference_type     = EXCLUDED.preference_type,
       preferred_barber_id = EXCLUDED.preferred_barber_id,
       assigned_barber_id  = EXCLUDED.assigned_barber_id,
-      called_at           = EXCLUDED.called_at,
-      service_type        = EXCLUDED.service_type;
+      called_at           = EXCLUDED.called_at;
   ELSE
     -- Status left the active set → remove from mirror
     DELETE FROM tv_walkins WHERE id = NEW.id;
@@ -96,12 +95,12 @@ CREATE TRIGGER trg_sync_tv_walkins
 INSERT INTO tv_walkins (
   id, shop_id, status, position, display_name,
   preference_type, preferred_barber_id, assigned_barber_id,
-  called_at, service_type, created_at
+  called_at
 )
 SELECT
   id, shop_id, status, position, display_name,
   preference_type, preferred_barber_id, assigned_barber_id,
-  called_at, service_type, created_at
+  called_at
 FROM walkins
 WHERE status IN ('WAITING', 'CALLED', 'IN_SERVICE')
 ON CONFLICT (id) DO NOTHING;

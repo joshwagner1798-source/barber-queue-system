@@ -83,6 +83,7 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tv_walkins' },
         (payload) => {
+          console.log('REALTIME EVENT:', payload)
           console.log('TV realtime walkin', payload)
           fetchData()
         },
@@ -91,6 +92,7 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tv_barber_status' },
         (payload) => {
+          console.log('REALTIME EVENT:', payload)
           console.log('TV realtime barber', payload)
           fetchData()
         },

@@ -42,14 +42,15 @@ AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
     DELETE FROM tv_barber_status
-     WHERE shop_id = OLD.shop_id AND barber_id = OLD.barber_id;
+     WHERE barber_id = OLD.barber_id;
     RETURN OLD;
   END IF;
 
   -- INSERT or UPDATE
   INSERT INTO tv_barber_status (shop_id, barber_id, status, status_detail, free_at, updated_at)
   VALUES (NEW.shop_id, NEW.barber_id, NEW.status, NEW.status_detail, NEW.free_at, now())
-  ON CONFLICT (shop_id, barber_id) DO UPDATE SET
+  ON CONFLICT (barber_id) DO UPDATE SET
+    shop_id       = EXCLUDED.shop_id,
     status        = EXCLUDED.status,
     status_detail = EXCLUDED.status_detail,
     free_at       = EXCLUDED.free_at,
@@ -69,7 +70,7 @@ CREATE TRIGGER trg_sync_tv_barber_status
 INSERT INTO tv_barber_status (shop_id, barber_id, status, status_detail, free_at, updated_at)
 SELECT shop_id, barber_id, status, status_detail, free_at, now()
 FROM barber_status
-ON CONFLICT (shop_id, barber_id) DO NOTHING;
+ON CONFLICT (barber_id) DO NOTHING;
 
 -- =============================================
 -- 4. Publication + replica identity
