@@ -5,17 +5,9 @@ import { sanitizePhone } from "./helpers"
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateWalkinTransition } from '@/lib/walkin/validation'
 import { appendEvent, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
+import { autoAssignWalkins } from '@/lib/walkin/queue_assignment'
 
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
-const TV_CHANNEL = `shop:${SHOP_ID}:tv`
-
-async function broadcastTVRefresh() {
-  const admin = createAdminClient()
-  const channel = admin.channel(TV_CHANNEL)
-  await channel.subscribe()
-  await channel.send({ type: 'broadcast', event: 'refresh', payload: { shopId: SHOP_ID } })
-  admin.removeChannel(channel)
-}
 
 // ---------------------------------------------------------------------------
 // Submit walk-in (single atomic RPC)
@@ -81,7 +73,9 @@ export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmit
     }
   }
 
-  await broadcastTVRefresh()
+  // Fire auto-assignment immediately after new walk-in joins queue.
+  // This is fire-and-forget — the response to the kiosk shouldn't wait.
+  autoAssignWalkins(admin, SHOP_ID).catch(() => {})
 
   return {
     success: true,
@@ -123,8 +117,6 @@ export async function checkInWalkin(
     actor_user_id: null,
     payload: { walkin_id: walkinId, from: 'CALLED', to: 'IN_SERVICE', source: 'kiosk_checkin' },
   })
-
-  await broadcastTVRefresh()
 
   return { success: true }
 }

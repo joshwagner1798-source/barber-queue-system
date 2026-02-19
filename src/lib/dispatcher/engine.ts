@@ -8,14 +8,18 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { CalendarProvider, BusyWindow, BlockedWindow } from '@/lib/calendar/provider'
-import { appendEvent, WALKIN_AUTO_ASSIGNED } from '@/lib/walkin/events'
+import { autoAssignWalkins } from '@/lib/walkin/queue_assignment'
+import type { EngineState } from '@/lib/queue/deriveDisplayStatus'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Minutes after last appointment end before a barber is considered FREE. */
-export const FREE_BUFFER_MINUTES = 5
+/** Minutes after last appointment end before a barber is considered AVAILABLE. */
+export const PREP_BUFFER_MIN = 5
+
+/** If next appointment is within this window, barber is SOON_BOOKED. */
+export const SOON_BOOKED_WINDOW_MIN = 30
 
 /** Minutes a walk-in can stay in CALLED before being marked NO_SHOW. */
 export const CALLED_TIMEOUT_MINUTES = 5
@@ -27,13 +31,14 @@ export const MAX_SERVICE_MINUTES = 45
 // Types
 // ---------------------------------------------------------------------------
 
-export type BarberComputedStatus = 'FREE' | 'BUSY' | 'UNAVAILABLE'
+export type { EngineState }
 
 export interface BarberSyncResult {
   barber_id: string
-  status: BarberComputedStatus
+  status: EngineState
   status_detail: string | null
   free_at: Date | null
+  next_appointment: Date | null
 }
 
 export interface DispatcherResult {
@@ -48,26 +53,53 @@ export interface DispatcherResult {
 // Status computation — pure function, no DB
 // ---------------------------------------------------------------------------
 
+/**
+ * Derive the internal engine state for a barber given their calendar data.
+ *
+ * Priority order:
+ * 1. OFF_TODAY  — entire day blocked or no windows at all (all blocked)
+ * 2. BLOCKED    — current time inside a block window
+ * 3. BUSY       — current time inside an appointment (or 5-min prep buffer)
+ * 4. SOON_BOOKED — next appointment starts within 30 minutes
+ * 5. AVAILABLE  — none of the above
+ */
 export function computeBarberStatus(
   barberId: string,
   busyWindows: BusyWindow[],
   blockedWindows: BlockedWindow[],
   now: Date,
 ): BarberSyncResult {
-  // Check for active block first (UNAVAILABLE takes priority display-wise)
+  // --- OFF_TODAY: entire day blocked ---
+  // Heuristic: if a single block spans >=8 hours covering now, it's a day off.
+  const dayBlock = blockedWindows.find((b) => {
+    const durationHrs = (b.end.getTime() - b.start.getTime()) / 3_600_000
+    return durationHrs >= 8 && b.start <= now && now < b.end
+  })
+  if (dayBlock) {
+    return {
+      barber_id: barberId,
+      status: 'OFF_TODAY',
+      status_detail: dayBlock.note,
+      free_at: dayBlock.end,
+      next_appointment: null,
+    }
+  }
+
+  // --- BLOCKED: current time inside a block window ---
   const activeBlock = blockedWindows.find(
     (b) => b.start <= now && now < b.end,
   )
   if (activeBlock) {
     return {
       barber_id: barberId,
-      status: 'UNAVAILABLE',
+      status: 'BLOCKED',
       status_detail: activeBlock.note,
       free_at: activeBlock.end,
+      next_appointment: null,
     }
   }
 
-  // Check for active appointment
+  // --- BUSY: current time inside an appointment ---
   const activeAppt = busyWindows.find(
     (b) => b.start <= now && now < b.end,
   )
@@ -77,33 +109,72 @@ export function computeBarberStatus(
       status: 'BUSY',
       status_detail: activeAppt.label ?? null,
       free_at: activeAppt.end,
+      next_appointment: null,
     }
   }
 
-  // Check 5-minute readiness buffer after last ended appointment
+  // --- BUSY: 5-minute prep buffer after last ended appointment ---
   const endedAppts = busyWindows
     .filter((b) => b.end <= now)
     .sort((a, b) => b.end.getTime() - a.end.getTime())
 
   if (endedAppts.length > 0) {
     const lastEnd = endedAppts[0].end
-    const bufferEnd = new Date(lastEnd.getTime() + FREE_BUFFER_MINUTES * 60_000)
+    const bufferEnd = new Date(lastEnd.getTime() + PREP_BUFFER_MIN * 60_000)
     if (now < bufferEnd) {
       return {
         barber_id: barberId,
         status: 'BUSY',
-        status_detail: 'Readiness buffer',
+        status_detail: 'Wrapping up',
         free_at: bufferEnd,
+        next_appointment: null,
       }
     }
   }
 
-  // No conflicts — barber is FREE
+  // --- Find next upcoming appointment (future only) ---
+  const futureAppts = busyWindows
+    .filter((b) => b.start > now)
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+
+  const nextAppt = futureAppts.length > 0 ? futureAppts[0] : null
+
+  // --- SOON_BOOKED: next appointment within 30 minutes ---
+  if (nextAppt) {
+    const minsUntil = (nextAppt.start.getTime() - now.getTime()) / 60_000
+    if (minsUntil <= SOON_BOOKED_WINDOW_MIN) {
+      return {
+        barber_id: barberId,
+        status: 'SOON_BOOKED',
+        status_detail: nextAppt.label ?? null,
+        free_at: null,
+        next_appointment: nextAppt.start,
+      }
+    }
+  }
+
+  // --- Also check if next appointment is within PREP_BUFFER (5 min) ---
+  // Even if no SOON_BOOKED, a 5-min prep window makes barber NOT available
+  if (nextAppt) {
+    const minsUntil = (nextAppt.start.getTime() - now.getTime()) / 60_000
+    if (minsUntil <= PREP_BUFFER_MIN) {
+      return {
+        barber_id: barberId,
+        status: 'SOON_BOOKED',
+        status_detail: 'Preparing for appointment',
+        free_at: null,
+        next_appointment: nextAppt.start,
+      }
+    }
+  }
+
+  // --- AVAILABLE ---
   return {
     barber_id: barberId,
-    status: 'FREE',
+    status: 'AVAILABLE',
     status_detail: null,
     free_at: null,
+    next_appointment: nextAppt?.start ?? null,
   }
 }
 
@@ -219,7 +290,6 @@ export async function runDispatcher(
     const becameBusy = sr.status === 'BUSY' && prev !== 'BUSY'
 
     if (becameBusy) {
-      // Find active IN_SERVICE walkin for this barber
       const { data: activeWalkins } = await admin
         .from('walkins')
         .select('id')
@@ -232,7 +302,6 @@ export async function runDispatcher(
         // @ts-expect-error — Supabase generated types resolve update param to never
         await admin.from('walkins').update({ status: 'DONE' }).eq('id', w.id)
 
-        // End the assignment
         await admin
           .from('assignments')
           // @ts-expect-error — Supabase generated types resolve update param to never
@@ -282,7 +351,6 @@ export async function runDispatcher(
   for (const w of (expiredCalled ?? []) as unknown as ERow[]) {
     // @ts-expect-error — Supabase generated types resolve update param to never
     await admin.from('walkins').update({ status: 'NO_SHOW' }).eq('id', w.id)
-    // End assignment if exists
     await admin
       .from('assignments')
       // @ts-expect-error — Supabase generated types resolve update param to never
@@ -293,99 +361,12 @@ export async function runDispatcher(
   }
 
   // -----------------------------------------------------------------------
-  // 6. Auto-assign walk-ins to FREE barbers
+  // 6. Auto-assign walk-ins to AVAILABLE barbers
+  //    Delegates to the centralized autoAssignWalkins() function.
   // -----------------------------------------------------------------------
-  const freeBarbers = syncResults.filter((sr) => sr.status === 'FREE')
-
-  for (const fb of freeBarbers) {
-    // Check if this barber already has an active CALLED or IN_SERVICE walkin
-    const { data: activeForBarber } = await admin
-      .from('walkins')
-      .select('id')
-      .eq('shop_id', shopId)
-      .eq('assigned_barber_id', fb.barber_id)
-      .in('status', ['CALLED', 'IN_SERVICE'])
-      .limit(1)
-
-    if ((activeForBarber ?? []).length > 0) continue // already serving someone
-
-    // Priority 1: oldest PREFERRED walk-in wanting this barber
-    const { data: preferred } = await admin
-      .from('walkins')
-      .select('id, display_name')
-      .eq('shop_id', shopId)
-      .eq('status', 'WAITING')
-      .eq('preference_type', 'PREFERRED')
-      .eq('preferred_barber_id', fb.barber_id)
-      .order('position', { ascending: true })
-      .limit(1)
-
-    type WalkinRow = { id: string; display_name: string | null }
-    let target: WalkinRow | null = null
-
-    if ((preferred ?? []).length > 0) {
-      target = (preferred as unknown as WalkinRow[])[0]
-    } else {
-      // Priority 2: oldest ANY walk-in (FIFO)
-      const { data: anyWalkin } = await admin
-        .from('walkins')
-        .select('id, display_name')
-        .eq('shop_id', shopId)
-        .eq('status', 'WAITING')
-        .in('preference_type', ['ANY', 'FASTEST'])
-        .order('position', { ascending: true })
-        .limit(1)
-
-      if ((anyWalkin ?? []).length > 0) {
-        target = (anyWalkin as unknown as WalkinRow[])[0]
-      }
-    }
-
-    if (!target) continue // no one to assign
-
-    // Optimistic lock: only update if still WAITING
-    const { data: updated, error: assignErr } = await admin
-      .from('walkins')
-      // @ts-expect-error — Supabase generated types resolve update param to never
-      .update({
-        status: 'CALLED',
-        assigned_barber_id: fb.barber_id,
-        called_at: now.toISOString(),
-      })
-      .eq('id', target.id)
-      .eq('status', 'WAITING')
-      .select('id')
-
-    if (assignErr || !(updated as unknown as { id: string }[] | null)?.length) {
-      continue // someone else got it, skip
-    }
-
-    // Create assignment record
-    // @ts-expect-error — Supabase generated types resolve insert param to never
-    await admin.from('assignments').insert({
-      shop_id: shopId,
-      walkin_id: target.id,
-      barber_id: fb.barber_id,
-    })
-
-    // Find barber name for event payload
-    const barber = barberRows.find((b) => b.id === fb.barber_id)
-    const barberName = barber ? `${barber.first_name} ${barber.last_name}` : ''
-
-    await appendEvent(admin, {
-      shop_id: shopId,
-      type: WALKIN_AUTO_ASSIGNED,
-      actor_user_id: null,
-      payload: {
-        walkin_id: target.id,
-        barber_id: fb.barber_id,
-        barber_name: barberName,
-        display_name: target.display_name,
-      },
-    })
-
-    result.assignments_made++
-  }
+  const assignResult = await autoAssignWalkins(admin, shopId)
+  result.assignments_made = assignResult.assignments_made
+  result.errors.push(...assignResult.errors)
 
   return result
 }

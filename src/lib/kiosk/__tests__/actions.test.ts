@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizePhone, buildDisplayName, submitWalkin } from '../actions'
+import { sanitizePhone, buildDisplayName } from '../helpers'
+import { submitWalkin } from '../actions'
 
 // ---------------------------------------------------------------------------
 // sanitizePhone — strips non-digits

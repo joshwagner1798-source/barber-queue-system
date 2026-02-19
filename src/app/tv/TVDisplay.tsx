@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { BarberStatusCard } from './BarberStatusCard'
 import { WaitingList } from './WaitingList'
 import { NowServing } from './NowServing'
@@ -47,6 +47,15 @@ export function TVDisplay() {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins] = useState<TVWalkin[]>([])
   const [barbers, setBarbers] = useState<TVBarber[]>([])
+  const mountedRef = useRef(false)
+
+  // Log mount once
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      console.log('[TV] mounted', location.href)
+    }
+  }, [])
 
   // Build name lookup from view-provided display_name
   const barberNames = new Map<string, string>()
@@ -54,8 +63,9 @@ export function TVDisplay() {
     barberNames.set(b.id, b.display_name)
   }
 
-  // Fetch all data from /api/tv
+  // Fetch all data from /api/tv (initial load + safety-net)
   const fetchData = useCallback(async () => {
+    console.log('[TV] fetchData fired')
     try {
       const res = await fetch('/api/tv', { cache: 'no-store' })
       if (!res.ok) return
@@ -73,9 +83,15 @@ export function TVDisplay() {
     fetchData()
   }, [fetchData])
 
-  // Realtime postgres_changes — refetch on any change
+  // Supabase Realtime — postgres_changes on tv_walkins and tv_barber_status
+  // On any change event, refetch all data for consistency (sub-50ms locally).
   useEffect(() => {
-    const supabase = createClient()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
+    console.log('[TV] setting up realtime subscriptions')
 
     const channel = supabase
       .channel('tv-realtime')
@@ -83,8 +99,7 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tv_walkins' },
         (payload) => {
-          console.log('REALTIME EVENT:', payload)
-          console.log('TV realtime walkin', payload)
+          console.log('[TV] tv_walkins event:', payload.eventType)
           fetchData()
         },
       )
@@ -92,19 +107,21 @@ export function TVDisplay() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tv_barber_status' },
         (payload) => {
-          console.log('REALTIME EVENT:', payload)
-          console.log('TV realtime barber', payload)
+          console.log('[TV] tv_barber_status event:', payload.eventType)
           fetchData()
         },
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log('[TV] realtime subscribe status:', status, err ?? '')
+      })
 
     return () => {
+      console.log('[TV] cleaning up realtime channel')
       supabase.removeChannel(channel)
     }
   }, [fetchData])
 
-  // 60s safety-net in case a broadcast is missed
+  // 60s safety-net poll
   useEffect(() => {
     const interval = setInterval(fetchData, 60_000)
     return () => clearInterval(interval)

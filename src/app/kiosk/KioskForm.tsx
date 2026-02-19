@@ -64,6 +64,7 @@ export function KioskForm({ barbers }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[Kiosk] handleSubmit fired', { firstName, lastInitial, phone })
     setError(null)
     setIsSubmitting(true)
 
@@ -75,6 +76,7 @@ export function KioskForm({ barbers }: Props) {
         preferenceType,
         preferredBarberId: preferenceType === 'PREFERRED' ? preferredBarberId : null,
       })
+      console.log('[Kiosk] submitWalkin result', result)
 
       if (!result.success) {
         setError(result.error ?? 'Something went wrong')

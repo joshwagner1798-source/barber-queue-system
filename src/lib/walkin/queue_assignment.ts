@@ -1,17 +1,15 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Walkin, Appointment, Service } from '@/types/database'
 import { getShopAvailability, type BarberAvailability } from './availability'
-import { appendEvent } from './events'
+import { appendEvent, WALKIN_AUTO_ASSIGNED } from './events'
 
 // ---------------------------------------------------------------------------
-// Constants & event type
+// Constants
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SERVICE_MINUTES = 30
 /** Buffer before a booked appointment where we won't start a walk-in (minutes). */
 const APPOINTMENT_BUFFER_MINUTES = 5
-
-export const WALKIN_AUTO_ASSIGNED = 'WALKIN_AUTO_ASSIGNED'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -298,4 +296,154 @@ export async function processBarberAvailable(
   compactQueuePositions(supabase, shopId).catch(() => {})
 
   return { assigned: true, suggestion }
+}
+
+// ---------------------------------------------------------------------------
+// autoAssignWalkins — single centralized function for all auto-assignment
+//
+// Iterates all AVAILABLE barbers in a shop and assigns walk-ins.
+// Uses optimistic locking to prevent double-assignment.
+// Called from: DB trigger (via /api/dispatcher), processBarberAvailable, etc.
+// ---------------------------------------------------------------------------
+
+export interface AutoAssignResult {
+  assignments_made: number
+  errors: string[]
+}
+
+export async function autoAssignWalkins(
+  supabase: SupabaseClient<Database>,
+  shopId: string,
+): Promise<AutoAssignResult> {
+  const result: AutoAssignResult = { assignments_made: 0, errors: [] }
+  const now = new Date()
+
+  // 1. Get barbers with AVAILABLE status from barber_status table
+  //    (barber_status is computed by the dispatcher from calendar data)
+  const { data: availableStatuses, error: statusErr } = await supabase
+    .from('barber_status')
+    .select('barber_id')
+    .eq('shop_id', shopId)
+    .eq('status', 'AVAILABLE')
+
+  if (statusErr) {
+    result.errors.push(`Failed to load barber statuses: ${statusErr.message}`)
+    return result
+  }
+
+  type StatusRow = { barber_id: string }
+  const availableBarberIds = (
+    (availableStatuses ?? []) as unknown as StatusRow[]
+  ).map((r) => r.barber_id)
+
+  if (availableBarberIds.length === 0) return result
+
+  // 2. For each available barber, try to assign next walk-in
+  for (const barberId of availableBarberIds) {
+    // Skip if barber already has an active assignment
+    const { data: activeForBarber } = await supabase
+      .from('walkins')
+      .select('id')
+      .eq('shop_id', shopId)
+      .eq('assigned_barber_id', barberId)
+      .in('status', ['CALLED', 'IN_SERVICE'])
+      .limit(1)
+
+    if ((activeForBarber ?? []).length > 0) continue
+
+    // Priority 1: oldest PREFERRED walk-in wanting this barber
+    const { data: preferred } = await supabase
+      .from('walkins')
+      .select('id, display_name')
+      .eq('shop_id', shopId)
+      .eq('status', 'WAITING')
+      .eq('preference_type', 'PREFERRED')
+      .eq('preferred_barber_id', barberId)
+      .order('position', { ascending: true })
+      .limit(1)
+
+    type WalkinRow = { id: string; display_name: string | null }
+    let target: WalkinRow | null = null
+
+    if ((preferred ?? []).length > 0) {
+      target = (preferred as unknown as WalkinRow[])[0]
+    } else {
+      // Priority 2: oldest ANY/FASTEST walk-in (FIFO)
+      const { data: anyWalkin } = await supabase
+        .from('walkins')
+        .select('id, display_name')
+        .eq('shop_id', shopId)
+        .eq('status', 'WAITING')
+        .in('preference_type', ['ANY', 'FASTEST'])
+        .order('position', { ascending: true })
+        .limit(1)
+
+      if ((anyWalkin ?? []).length > 0) {
+        target = (anyWalkin as unknown as WalkinRow[])[0]
+      }
+    }
+
+    if (!target) continue
+
+    // Optimistic lock: only update if still WAITING (prevents double-assign)
+    const { data: updated, error: assignErr } = await supabase
+      .from('walkins')
+      // @ts-expect-error — Supabase generated types resolve update param to never
+      .update({
+        status: 'CALLED',
+        assigned_barber_id: barberId,
+        called_at: now.toISOString(),
+      })
+      .eq('id', target.id)
+      .eq('status', 'WAITING')
+      .select('id')
+
+    if (assignErr || !(updated as unknown as { id: string }[] | null)?.length) {
+      continue // someone else got it or it was already assigned
+    }
+
+    // Create assignment record
+    // @ts-expect-error — Supabase generated types resolve insert param to never
+    await supabase.from('assignments').insert({
+      shop_id: shopId,
+      walkin_id: target.id,
+      barber_id: barberId,
+    })
+
+    // Get barber name for event
+    const { data: barberUser } = await supabase
+      .from('users')
+      .select('first_name, last_name')
+      .eq('id', barberId)
+      .limit(1)
+
+    type UserRow = { first_name: string; last_name: string }
+    const user = (barberUser as unknown as UserRow[] | null)?.[0]
+    const barberName = user ? `${user.first_name} ${user.last_name}` : ''
+
+    try {
+      await appendEvent(supabase, {
+        shop_id: shopId,
+        type: WALKIN_AUTO_ASSIGNED,
+        actor_user_id: null,
+        payload: {
+          walkin_id: target.id,
+          barber_id: barberId,
+          barber_name: barberName,
+          display_name: target.display_name,
+        },
+      })
+    } catch {
+      // best-effort
+    }
+
+    result.assignments_made++
+  }
+
+  // Compact queue positions after assignments
+  if (result.assignments_made > 0) {
+    compactQueuePositions(supabase, shopId).catch(() => {})
+  }
+
+  return result
 }
