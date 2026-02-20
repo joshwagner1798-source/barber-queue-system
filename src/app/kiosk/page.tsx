@@ -1,4 +1,3 @@
-import { getActiveBarbers } from '@/lib/kiosk/barbers'
 import { KioskForm } from './KioskForm'
 
 export const metadata = {
@@ -7,12 +6,10 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-export default async function KioskPage() {
-  const barbers = await getActiveBarbers()
-
+export default function KioskPage() {
   return (
     <main className="min-h-screen bg-secondary-950 flex items-center justify-center p-4">
-      <KioskForm barbers={barbers} />
+      <KioskForm />
     </main>
   )
 }
