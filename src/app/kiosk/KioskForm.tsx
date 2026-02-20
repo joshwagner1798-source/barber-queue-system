@@ -6,13 +6,18 @@ import { Input } from '@/components/ui/Input'
 import { submitWalkin, checkInWalkin, lookupByPhone } from '@/lib/kiosk/actions'
 import type { KioskBarber } from '@/lib/kiosk/barbers'
 
-interface Props {
-  barbers: KioskBarber[]
-}
-
 type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
-export function KioskForm({ barbers }: Props) {
+export function KioskForm() {
+  const [barbers, setBarbers] = useState<KioskBarber[]>([])
+
+  useEffect(() => {
+    fetch('/api/kiosk/barbers')
+      .then((r) => r.json())
+      .then((data: KioskBarber[]) => setBarbers(data))
+      .catch((err) => console.error('[KioskForm] failed to load barbers:', err))
+  }, [])
+
   // Form state
   const [firstName, setFirstName] = useState('')
   const [lastInitial, setLastInitial] = useState('')
