@@ -31,7 +31,7 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${origin}/barber`)
         }
         if (profile?.role === 'admin' || profile?.role === 'owner') {
-          return NextResponse.redirect(`${origin}/admin`)
+          return NextResponse.redirect(`${origin}/dashboard`)
         }
       }
 
