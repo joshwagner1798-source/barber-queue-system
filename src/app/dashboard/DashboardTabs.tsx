@@ -48,15 +48,15 @@ export function DashboardTabs({
   return (
     <div className="min-h-screen bg-secondary-950 flex flex-col">
       {/* Tab bar */}
-      <nav className="bg-secondary-900 border-b border-secondary-800 px-6 flex gap-1 pt-3">
+      <nav className="bg-secondary-800 border-b border-secondary-700 px-4 flex sticky top-0 z-10">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            className={`px-6 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
               activeTab === t.id
-                ? 'bg-secondary-950 text-white border-t border-x border-secondary-700'
-                : 'text-secondary-400 hover:text-secondary-200 hover:bg-secondary-800/50'
+                ? 'text-white border-primary-400'
+                : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
             }`}
           >
             {t.label}
