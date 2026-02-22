@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { loginAction } from './actions'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,8 +20,12 @@ export default function LoginPage() {
 
     startTransition(async () => {
       const result = await loginAction(email, password)
-      if (result?.error) {
+      if (result.error) {
         setError(result.error)
+      } else {
+        // Navigate only after the server action response (and its Set-Cookie
+        // headers) have been fully processed by the browser.
+        router.push('/dashboard')
       }
     })
   }
