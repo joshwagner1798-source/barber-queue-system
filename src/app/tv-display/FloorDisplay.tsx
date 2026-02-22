@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { WaitingList } from '@/app/tv/WaitingList'
 import { BarberCard } from '@/components/BarberCard'
+import { NewYorkClock } from '@/components/tv/NewYorkClock'
 
 // ---------------------------------------------------------------------------
 // Types — same shape as /api/tv response (display-safe)
@@ -187,9 +188,15 @@ export function FloorDisplay() {
 
       {/* ── Main area ──────────────────────────────────────────────────── */}
       <div className="relative flex-1 flex flex-col p-6 overflow-hidden min-h-0 z-10">
-        <header className="mb-4 flex-shrink-0">
-          <h1 className="text-3xl font-bold text-white drop-shadow-lg">Sharper Image</h1>
-          <p className="text-white/60 text-base">Live Barber Status</p>
+        <header className="mb-4 flex-shrink-0 relative flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white drop-shadow-lg">Sharper Image</h1>
+            <p className="text-white/60 text-base">Live Barber Status</p>
+          </div>
+          {/* Clock — isolated client component; only it re-renders every second */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-0">
+            <NewYorkClock />
+          </div>
         </header>
 
         {/* Barber card row — animated "race" */}
