@@ -46,7 +46,7 @@ export function BarberCard({
   const apptText = formatNextAppt(nextAppointmentAt)
 
   return (
-    <div className="relative w-44 rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 flex flex-col">
+    <div className="relative w-44 flex flex-col">
       {/* Status badge — top-right corner */}
       <div className="absolute top-3 right-3 z-10">
         <span
@@ -56,13 +56,14 @@ export function BarberCard({
         </span>
       </div>
 
-      {/* Photo area — transparent PNG "stands" on the dark background */}
-      <div className="relative h-52 bg-zinc-900 flex-shrink-0">
+      {/* Photo area — no background; transparent PNG floats freely */}
+      <div className="relative h-52 flex-shrink-0">
         {avatarUrl ? (
           <img
             src={avatarUrl}
             alt={displayName}
             className="absolute bottom-0 left-0 w-full h-full object-contain object-bottom"
+            style={{ background: 'transparent' }}
           />
         ) : (
           /* Fallback initials circle when no photo */
@@ -74,7 +75,7 @@ export function BarberCard({
       </div>
 
       {/* Info strip */}
-      <div className="bg-zinc-800 px-4 py-3">
+      <div className="bg-zinc-800 rounded-2xl border border-zinc-700 shadow-2xl px-4 py-3">
         <p className="text-white font-bold text-base leading-tight">{displayName}</p>
         <p className="text-zinc-400 text-xs mt-0.5">{apptText}</p>
       </div>
