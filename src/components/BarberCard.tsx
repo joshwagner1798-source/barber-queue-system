@@ -54,6 +54,10 @@ interface Props {
   nextAppointmentAt: string | null
   /** ISO timestamp when current appointment ends — drives live countdown */
   freeAt?: string | null
+  /** Extra classes applied to the root card div */
+  className?: string
+  /** Extra classes applied to the <img> element */
+  imageClassName?: string
 }
 
 export function BarberCard({
@@ -63,6 +67,8 @@ export function BarberCard({
   status,
   nextAppointmentAt,
   freeAt = null,
+  className,
+  imageClassName,
 }: Props) {
   const displayName = `${firstName} ${lastName.charAt(0)}.`
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.OFF
@@ -89,14 +95,14 @@ export function BarberCard({
 
   return (
     <div
-      className={`relative w-36 h-60 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10`}
+      className={`relative w-44 h-72 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10${className ? ` ${className}` : ''}`}
     >
       {/* Photo — full-bleed */}
       {avatarUrl ? (
         <img
           src={avatarUrl}
           alt={displayName}
-          className="absolute inset-0 w-full h-full object-cover object-top"
+          className={`absolute inset-0 w-full h-full object-cover object-top${imageClassName ? ` ${imageClassName}` : ''}`}
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">

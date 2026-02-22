@@ -158,14 +158,14 @@ export function FloorDisplay() {
   return (
     <div className="min-h-screen bg-secondary-950 flex">
       {/* ── Main area ───────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col p-6 overflow-hidden min-h-0">
         <header className="mb-8">
           <h1 className="text-4xl font-bold text-white">Sharper Image</h1>
           <p className="text-secondary-400 text-lg">Live Barber Status</p>
         </header>
 
-        {/* Barber cards — full player-card style, single row */}
-        <div className="flex flex-row flex-nowrap gap-4 pb-4">
+        {/* Barber cards — grid fills available width, tall portrait cards */}
+        <div className="grid grid-flow-col auto-cols-fr gap-6 w-full items-stretch overflow-hidden flex-1">
           {barbers.map((b) => {
             const bs = statuses.find((s) => s.barber_id === b.id)
             // Map TV API status → barber_state format used by BarberCard
@@ -182,6 +182,7 @@ export function FloorDisplay() {
                 status={cardStatus}
                 nextAppointmentAt={null}
                 freeAt={bs?.free_at ?? null}
+                className="w-full h-[48vh] min-h-[420px] max-h-[640px] rounded-3xl"
               />
             )
           })}
