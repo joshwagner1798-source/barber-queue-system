@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { WaitingList } from '@/app/tv/WaitingList'
 import { BarberCard } from '@/components/BarberCard'
@@ -40,8 +41,15 @@ interface TVBarber {
 }
 
 // ---------------------------------------------------------------------------
-// Wait estimate — derived from /api/tv data (no auth needed)
+// Helpers
 // ---------------------------------------------------------------------------
+
+function statusRank(tvStatus?: string): number {
+  if (tvStatus === 'FREE')         return 0
+  if (tvStatus === 'BUSY')         return 1
+  if (tvStatus === 'UNAVAILABLE')  return 2
+  return 3
+}
 
 function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): number {
   if (waitingCount === 0) return 0
@@ -53,17 +61,42 @@ function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): numb
   return Math.max(0, Math.round((Math.min(...freeAts) - Date.now()) / 1000))
 }
 
+// Glow colour + pulse config per TV status
+function glowConfig(tvStatus?: string): { bg: string; pulse: { opacity: number[]; scale: number[] } } {
+  switch (tvStatus) {
+    case 'FREE':
+      return {
+        bg: 'bg-emerald-500',
+        pulse: { opacity: [0.35, 0.65, 0.35], scale: [0.97, 1.03, 0.97] },
+      }
+    case 'BUSY':
+      return {
+        bg: 'bg-red-500',
+        pulse: { opacity: [0.3, 0.55, 0.3], scale: [0.97, 1.03, 0.97] },
+      }
+    case 'UNAVAILABLE':
+      return {
+        bg: 'bg-blue-500',
+        pulse: { opacity: [0.15, 0.3, 0.15], scale: [0.98, 1.02, 0.98] },
+      }
+    default:
+      return {
+        bg: 'bg-zinc-600',
+        pulse: { opacity: [0.08, 0.15, 0.08], scale: [0.99, 1.01, 0.99] },
+      }
+  }
+}
+
 // ---------------------------------------------------------------------------
-// FloorDisplay — TV floor layout with horizontal barber row + right sidebar
+// FloorDisplay
 // ---------------------------------------------------------------------------
 
 export function FloorDisplay() {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
-  const [walkins, setWalkins] = useState<TVWalkin[]>([])
-  const [barbers, setBarbers] = useState<TVBarber[]>([])
+  const [walkins, setWalkins]   = useState<TVWalkin[]>([])
+  const [barbers, setBarbers]   = useState<TVBarber[]>([])
   const [displaySecs, setDisplaySecs] = useState(0)
 
-  // Fetch from existing /api/tv — reuse same endpoint as /tv
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/tv')
@@ -72,70 +105,53 @@ export function FloorDisplay() {
       setStatuses(data.barber_statuses ?? [])
       setWalkins(data.walkins ?? [])
       setBarbers(data.barbers ?? [])
-    } catch {
-      // Silently retry on next cycle
-    }
+    } catch { /* silent */ }
   }, [])
 
-  // Initial load
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  // Realtime — separate channel name to coexist with /tv page if both are open
+  // Realtime — separate channel; do NOT touch subscriptions logic
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel('floor-display-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'barber_status' },
-        () => fetchData(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'walkins' },
-        () => fetchData(),
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'barber_status' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'walkins' },       () => fetchData())
       .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [fetchData])
 
-  // 60s safety-net full refresh
   useEffect(() => {
     const id = setInterval(fetchData, 60_000)
     return () => clearInterval(id)
   }, [fetchData])
 
-  // Resync countdown when data changes
   useEffect(() => {
     const waitCount = walkins.filter((w) => w.status === 'WAITING').length
     setDisplaySecs(computeWaitSecs(statuses, waitCount))
   }, [statuses, walkins])
 
-  // Live second-by-second tick
   useEffect(() => {
-    const id = setInterval(
-      () => setDisplaySecs((prev) => Math.max(0, prev - 1)),
-      1000,
-    )
+    const id = setInterval(() => setDisplaySecs((p) => Math.max(0, p - 1)), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // ---------------------------------------------------------------------------
-  // Derived display data
-  // ---------------------------------------------------------------------------
+  // ── "Race" sort: FREE first → BUSY by freeAt → UNAVAILABLE → OFF ──────────
+  const sortedBarbers = useMemo(() => {
+    return [...barbers].sort((a, b) => {
+      const sa = statuses.find((s) => s.barber_id === a.id)
+      const sb = statuses.find((s) => s.barber_id === b.id)
+      const ra = statusRank(sa?.status)
+      const rb = statusRank(sb?.status)
+      if (ra !== rb) return ra - rb
+      const fa = sa?.free_at ? new Date(sa.free_at).getTime() : Infinity
+      const fb = sb?.free_at ? new Date(sb.free_at).getTime() : Infinity
+      return fa - fb
+    })
+  }, [barbers, statuses])
 
+  // ── Derived queue data ─────────────────────────────────────────────────────
   const barberNames = new Map(barbers.map((b) => [b.id, `${b.first_name} ${b.last_name}`]))
-
-  const barberServingMap = new Map<string, TVWalkin>()
-  for (const w of walkins) {
-    if ((w.status === 'CALLED' || w.status === 'IN_SERVICE') && w.assigned_barber_id) {
-      barberServingMap.set(w.assigned_barber_id, w)
-    }
-  }
 
   const waitingEntries = walkins
     .filter((w) => w.status === 'WAITING')
@@ -154,71 +170,98 @@ export function FloorDisplay() {
   const ss = String(displaySecs % 60).padStart(2, '0')
   const anyFree = statuses.some((s) => s.status === 'FREE')
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-secondary-950 flex">
-      {/* ── Main area ───────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden min-h-0">
+    <div
+      className="min-h-screen flex relative overflow-hidden"
+      style={{
+        backgroundImage: "url('/images/shop-bg.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#0c0a09', // fallback when image absent
+      }}
+    >
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] pointer-events-none" />
+
+      {/* ── Main area ──────────────────────────────────────────────────── */}
+      <div className="relative flex-1 flex flex-col p-6 overflow-hidden min-h-0 z-10">
         <header className="mb-4 flex-shrink-0">
-          <h1 className="text-3xl font-bold text-white">Sharper Image</h1>
-          <p className="text-secondary-400 text-base">Live Barber Status</p>
+          <h1 className="text-3xl font-bold text-white drop-shadow-lg">Sharper Image</h1>
+          <p className="text-white/60 text-base">Live Barber Status</p>
         </header>
 
-        {/* Barber cards — grid fills available width, tall portrait cards */}
-        <div className="grid grid-flow-col auto-cols-fr gap-4 w-full items-stretch overflow-hidden flex-1">
-          {barbers.map((b) => {
-            const bs = statuses.find((s) => s.barber_id === b.id)
-            // Map TV API status → barber_state format used by BarberCard
-            const cardStatus =
-              bs?.status === 'FREE'         ? 'AVAILABLE' :
-              bs?.status === 'BUSY'         ? 'IN_CHAIR'  :
-              bs?.status === 'UNAVAILABLE'  ? 'ON_BREAK'  : 'OFF'
-            return (
-              <BarberCard
-                key={b.id}
-                firstName={b.first_name}
-                lastName={b.last_name}
-                avatarUrl={b.avatar_url}
-                status={cardStatus}
-                nextAppointmentAt={b.next_start_at}
-                nextKind={b.next_kind}
-                nextNotes={b.next_notes}
-                freeAt={bs?.free_at ?? null}
-                className="w-full h-[64vh] min-h-[520px] max-h-[820px] rounded-3xl"
-              />
-            )
-          })}
+        {/* Barber card row — animated "race" */}
+        <div className="flex gap-4 w-full flex-1 min-h-0 items-stretch">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {sortedBarbers.map((b) => {
+              const bs = statuses.find((s) => s.barber_id === b.id)
+              const cardStatus =
+                bs?.status === 'FREE'        ? 'AVAILABLE' :
+                bs?.status === 'BUSY'        ? 'IN_CHAIR'  :
+                bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  : 'OFF'
+              const glow = glowConfig(bs?.status)
+
+              return (
+                <motion.div
+                  key={b.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                  className="relative flex-1 min-w-0"
+                >
+                  {/* Pulsing glow — behind card */}
+                  <motion.div
+                    className={`absolute inset-[-10px] rounded-3xl blur-2xl ${glow.bg} pointer-events-none`}
+                    animate={glow.pulse}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{ zIndex: 0 }}
+                  />
+                  {/* Card */}
+                  <div className="relative" style={{ zIndex: 1 }}>
+                    <BarberCard
+                      firstName={b.first_name}
+                      lastName={b.last_name}
+                      avatarUrl={b.avatar_url}
+                      status={cardStatus}
+                      nextAppointmentAt={b.next_start_at}
+                      nextKind={b.next_kind}
+                      nextNotes={b.next_notes}
+                      freeAt={bs?.free_at ?? null}
+                      className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
+                    />
+                  </div>
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
           {barbers.length === 0 && (
-            <p className="text-secondary-500 text-xl mt-8">No barbers on the floor today.</p>
+            <p className="text-white/50 text-xl mt-8">No barbers on the floor today.</p>
           )}
         </div>
       </div>
 
-      {/* ── Right sidebar ───────────────────────────────────────── */}
-      <aside className="w-72 xl:w-80 bg-secondary-900 border-l border-secondary-800 p-6 flex flex-col gap-6">
-        {/* Estimated wait countdown */}
+      {/* ── Right sidebar ─────────────────────────────────────────────── */}
+      <aside className="relative z-10 w-72 xl:w-80 bg-black/60 backdrop-blur-md border-l border-white/10 p-6 flex flex-col gap-6">
         <div>
-          <p className="text-xs font-semibold text-secondary-400 uppercase tracking-widest mb-3">
+          <p className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-3">
             Estimated Wait
           </p>
-          <div className="text-7xl font-mono font-bold text-white tabular-nums leading-none">
+          <div className="text-7xl font-mono font-bold text-white tabular-nums leading-none drop-shadow-lg">
             {mm}:{ss}
           </div>
           {anyFree && waitingEntries.length === 0 ? (
             <p className="text-emerald-400 text-sm mt-3 font-medium">Walk right in!</p>
           ) : waitingEntries.length > 0 ? (
-            <p className="text-secondary-400 text-sm mt-3">
-              {waitingEntries.length} waiting
-            </p>
+            <p className="text-white/50 text-sm mt-3">{waitingEntries.length} waiting</p>
           ) : null}
         </div>
 
-        {/* Walk-in queue — sign-in order */}
         <div className="flex-1 overflow-y-auto">
-          <p className="text-xs font-semibold text-secondary-400 uppercase tracking-widest mb-3">
+          <p className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-3">
             Queue
           </p>
           <WaitingList entries={waitingEntries} />
