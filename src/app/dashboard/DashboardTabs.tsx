@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { FloorDisplay } from '@/app/tv-display/FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
 import { AdminDashboard } from '@/app/admin/AdminDashboard'
@@ -44,6 +44,26 @@ export function DashboardTabs({
   initialEvents,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('tv')
+  const [isPending, startTransition] = useTransition()
+
+  function handleTabClick(id: Tab) {
+    if (id !== 'settings') {
+      setActiveTab(id)
+      return
+    }
+    // Owner Settings requires a server-side session (cookie-based auth).
+    // The browser Supabase client reads localStorage and won't see it, so
+    // we check via the debug API which reads the same cookie the server uses.
+    startTransition(async () => {
+      const res = await fetch('/api/auth/debug')
+      const { session } = await res.json()
+      if (!session) {
+        window.location.assign('/login')
+        return
+      }
+      setActiveTab('settings')
+    })
+  }
 
   return (
     <div className="min-h-screen bg-secondary-950 flex flex-col">
@@ -52,12 +72,13 @@ export function DashboardTabs({
         {TABS.map((t) => (
           <button
             key={t.id}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => handleTabClick(t.id)}
+            disabled={isPending && t.id === 'settings'}
             className={`px-6 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
               activeTab === t.id
                 ? 'text-white border-primary-400'
                 : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
-            }`}
+            } disabled:opacity-50`}
           >
             {t.label}
           </button>
