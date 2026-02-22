@@ -1,3 +1,7 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+
 // barber_state.state values → display label + colour + glow
 const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
@@ -8,11 +12,6 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string
   OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
 }
 
-/**
- * Returns { label, time } so we can style them independently.
- * label = "Next Appt:" or null (no-appt case)
- * time  = "4:00 PM", "Tomorrow 4:00 PM", "Mar 5 4:00 PM", or "No Appts Today"
- */
 function parseNextAppt(iso: string | null): { label: string | null; time: string } {
   if (!iso) return { label: null, time: 'No Appts Today' }
   const appt = new Date(iso)
@@ -30,8 +29,19 @@ function parseNextAppt(iso: string | null): { label: string | null; time: string
   if (appt.toDateString() === tomorrow.toDateString()) {
     return { label: 'Next Appt:', time: `Tomorrow ${time}` }
   }
-  const date = appt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  return { label: 'Next Appt:', time: `${date} ${time}` }
+  return { label: 'Next Appt:', time: `${appt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}` }
+}
+
+function formatCountdown(targetIso: string): string {
+  const diffMs = new Date(targetIso).getTime() - Date.now()
+  if (diffMs <= 0) return 'Available Now'
+  const total = Math.floor(diffMs / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `Ready in ${h}h ${m}m ${s}s`
+  if (m > 0) return `Ready in ${m}m ${s}s`
+  return `Ready in ${s}s`
 }
 
 interface Props {
@@ -42,6 +52,8 @@ interface Props {
   status: string
   /** ISO timestamp from provider_appointments.start_at, or null */
   nextAppointmentAt: string | null
+  /** ISO timestamp when current appointment ends — drives live countdown */
+  freeAt?: string | null
 }
 
 export function BarberCard({
@@ -50,16 +62,36 @@ export function BarberCard({
   avatarUrl,
   status,
   nextAppointmentAt,
+  freeAt = null,
 }: Props) {
   const displayName = `${firstName} ${lastName.charAt(0)}.`
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.OFF
-  const { label, time } = parseNextAppt(nextAppointmentAt)
+
+  // Live countdown — ticks every second when freeAt is set
+  const [countdownText, setCountdownText] = useState<string | null>(
+    freeAt ? formatCountdown(freeAt) : null,
+  )
+  useEffect(() => {
+    if (!freeAt) { setCountdownText(null); return }
+    setCountdownText(formatCountdown(freeAt))
+    const id = setInterval(() => setCountdownText(formatCountdown(freeAt)), 1000)
+    return () => clearInterval(id)
+  }, [freeAt])
+
+  const isAvailable = status === 'AVAILABLE'
+  const isAvailableNow = isAvailable || countdownText === 'Available Now'
+
+  // What to show in the info overlay:
+  // 1. freeAt provided  → countdown (or "Available Now" when it reaches 0)
+  // 2. AVAILABLE status → "Available Now"
+  // 3. Fallback         → next appointment info
+  const { label: apptLabel, time: apptTime } = parseNextAppt(nextAppointmentAt)
 
   return (
     <div
       className={`relative w-36 h-60 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10`}
     >
-      {/* Photo — full-bleed, covers card edge to edge */}
+      {/* Photo — full-bleed */}
       {avatarUrl ? (
         <img
           src={avatarUrl}
@@ -74,19 +106,33 @@ export function BarberCard({
         </div>
       )}
 
-      {/* Bottom gradient — tall enough for two lines of text */}
+      {/* Bottom gradient */}
       <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none" />
 
-      {/* Name + appointment overlay */}
+      {/* Info overlay */}
       <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 z-10">
         <p className="text-white font-bold text-sm leading-tight tracking-wide mb-1">{displayName}</p>
-        {label ? (
+
+        {countdownText !== null ? (
+          // Countdown mode
+          isAvailableNow ? (
+            <p className="text-emerald-400 font-black text-sm leading-tight">Available Now</p>
+          ) : (
+            <p className="text-amber-300 font-black text-sm leading-tight tabular-nums">
+              {countdownText}
+            </p>
+          )
+        ) : isAvailable ? (
+          // Available, no countdown
+          <p className="text-emerald-400 font-black text-sm leading-tight">Available Now</p>
+        ) : apptLabel ? (
+          // Next appt fallback
           <>
-            <p className="text-zinc-400 text-xs leading-none">{label}</p>
-            <p className="text-amber-300 font-black text-base leading-tight tracking-wide">{time}</p>
+            <p className="text-zinc-400 text-xs leading-none">{apptLabel}</p>
+            <p className="text-amber-300 font-black text-base leading-tight tracking-wide">{apptTime}</p>
           </>
         ) : (
-          <p className="text-zinc-400 font-semibold text-xs leading-tight">{time}</p>
+          <p className="text-zinc-400 font-semibold text-xs leading-tight">{apptTime}</p>
         )}
       </div>
 

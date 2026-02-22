@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { WaitingList } from '@/app/tv/WaitingList'
-import { FloorBarberCard } from './FloorBarberCard'
+import { BarberCard } from '@/components/BarberCard'
 
 // ---------------------------------------------------------------------------
 // Types — same shape as /api/tv response (display-safe)
@@ -164,21 +164,24 @@ export function FloorDisplay() {
           <p className="text-secondary-400 text-lg">Live Barber Status</p>
         </header>
 
-        {/* Horizontal barber card row */}
-        <div className="flex flex-row flex-wrap gap-4 pb-4">
+        {/* Barber cards — full player-card style, single row */}
+        <div className="flex flex-row flex-nowrap gap-4 pb-4">
           {barbers.map((b) => {
             const bs = statuses.find((s) => s.barber_id === b.id)
-            const serving = barberServingMap.get(b.id)
-            const initials = `${b.first_name[0] ?? ''}${b.last_name[0] ?? ''}`.toUpperCase()
+            // Map TV API status → barber_state format used by BarberCard
+            const cardStatus =
+              bs?.status === 'FREE'         ? 'AVAILABLE' :
+              bs?.status === 'BUSY'         ? 'IN_CHAIR'  :
+              bs?.status === 'UNAVAILABLE'  ? 'ON_BREAK'  : 'OFF'
             return (
-              <FloorBarberCard
+              <BarberCard
                 key={b.id}
-                name={`${b.first_name} ${b.last_name}`}
-                initials={initials}
+                firstName={b.first_name}
+                lastName={b.last_name}
                 avatarUrl={b.avatar_url}
-                status={bs?.status ?? 'UNKNOWN'}
+                status={cardStatus}
+                nextAppointmentAt={null}
                 freeAt={bs?.free_at ?? null}
-                nowServingName={serving?.display_name ?? null}
               />
             )
           })}
