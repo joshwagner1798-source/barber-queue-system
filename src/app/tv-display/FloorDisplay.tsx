@@ -34,6 +34,9 @@ interface TVBarber {
   last_name: string
   avatar_url: string | null
   display_order: number
+  next_start_at: string | null
+  next_kind: 'APPT' | 'BLOCK' | null
+  next_notes: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -159,13 +162,13 @@ export function FloorDisplay() {
     <div className="min-h-screen bg-secondary-950 flex">
       {/* ── Main area ───────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col p-6 overflow-hidden min-h-0">
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold text-white">Sharper Image</h1>
-          <p className="text-secondary-400 text-lg">Live Barber Status</p>
+        <header className="mb-4 flex-shrink-0">
+          <h1 className="text-3xl font-bold text-white">Sharper Image</h1>
+          <p className="text-secondary-400 text-base">Live Barber Status</p>
         </header>
 
         {/* Barber cards — grid fills available width, tall portrait cards */}
-        <div className="grid grid-flow-col auto-cols-fr gap-6 w-full items-stretch overflow-hidden flex-1">
+        <div className="grid grid-flow-col auto-cols-fr gap-4 w-full items-stretch overflow-hidden flex-1">
           {barbers.map((b) => {
             const bs = statuses.find((s) => s.barber_id === b.id)
             // Map TV API status → barber_state format used by BarberCard
@@ -180,9 +183,11 @@ export function FloorDisplay() {
                 lastName={b.last_name}
                 avatarUrl={b.avatar_url}
                 status={cardStatus}
-                nextAppointmentAt={null}
+                nextAppointmentAt={b.next_start_at}
+                nextKind={b.next_kind}
+                nextNotes={b.next_notes}
                 freeAt={bs?.free_at ?? null}
-                className="w-full h-[48vh] min-h-[420px] max-h-[640px] rounded-3xl"
+                className="w-full h-[64vh] min-h-[520px] max-h-[820px] rounded-3xl"
               />
             )
           })}

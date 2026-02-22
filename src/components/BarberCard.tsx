@@ -12,24 +12,15 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string
   OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
 }
 
-function parseNextAppt(iso: string | null): { label: string | null; time: string } {
-  if (!iso) return { label: null, time: 'No Appts Today' }
-  const appt = new Date(iso)
+function formatTime(iso: string): string {
+  const d = new Date(iso)
   const now = new Date()
-  const time = appt.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-  if (appt.toDateString() === now.toDateString()) {
-    return { label: 'Next Appt:', time }
-  }
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  if (d.toDateString() === now.toDateString()) return time
   const tomorrow = new Date(now)
   tomorrow.setDate(now.getDate() + 1)
-  if (appt.toDateString() === tomorrow.toDateString()) {
-    return { label: 'Next Appt:', time: `Tomorrow ${time}` }
-  }
-  return { label: 'Next Appt:', time: `${appt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}` }
+  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow ${time}`
+  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`
 }
 
 function formatCountdown(targetIso: string): string {
@@ -50,8 +41,12 @@ interface Props {
   avatarUrl: string | null
   /** barber_state.state — AVAILABLE | IN_CHAIR | ON_BREAK | CLEANUP | OFF | OTHER */
   status: string
-  /** ISO timestamp from provider_appointments.start_at, or null */
+  /** ISO timestamp of next scheduled item (appointment or block) */
   nextAppointmentAt: string | null
+  /** Whether the next item is a block or a regular appointment */
+  nextKind?: 'APPT' | 'BLOCK' | null
+  /** Notes for the blocked time, if applicable */
+  nextNotes?: string | null
   /** ISO timestamp when current appointment ends — drives live countdown */
   freeAt?: string | null
   /** Extra classes applied to the root card div */
@@ -66,11 +61,13 @@ export function BarberCard({
   avatarUrl,
   status,
   nextAppointmentAt,
+  nextKind = null,
+  nextNotes = null,
   freeAt = null,
   className,
   imageClassName,
 }: Props) {
-  const displayName = `${firstName} ${lastName.charAt(0)}.`
+  const shortName = `${firstName} ${lastName.charAt(0)}.`
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.OFF
 
   // Live countdown — ticks every second when freeAt is set
@@ -84,14 +81,16 @@ export function BarberCard({
     return () => clearInterval(id)
   }, [freeAt])
 
-  const isAvailable = status === 'AVAILABLE'
-  const isAvailableNow = isAvailable || countdownText === 'Available Now'
+  const isAvailableNow = status === 'AVAILABLE' || countdownText === 'Available Now'
 
-  // What to show in the info overlay:
-  // 1. freeAt provided  → countdown (or "Available Now" when it reaches 0)
-  // 2. AVAILABLE status → "Available Now"
-  // 3. Fallback         → next appointment info
-  const { label: apptLabel, time: apptTime } = parseNextAppt(nextAppointmentAt)
+  // Build the "next time" label shown next to the name
+  let nextLabel: string
+  if (nextAppointmentAt) {
+    const time = formatTime(nextAppointmentAt)
+    nextLabel = nextKind === 'BLOCK' ? `BLOCKED ${time}` : time
+  } else {
+    nextLabel = 'No Appts'
+  }
 
   return (
     <div
@@ -101,7 +100,7 @@ export function BarberCard({
       {avatarUrl ? (
         <img
           src={avatarUrl}
-          alt={displayName}
+          alt={shortName}
           className={`absolute inset-0 w-full h-full object-cover object-top${imageClassName ? ` ${imageClassName}` : ''}`}
         />
       ) : (
@@ -113,32 +112,31 @@ export function BarberCard({
       )}
 
       {/* Bottom gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-36 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none" />
 
       {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 z-10">
-        <p className="text-white font-bold text-sm leading-tight tracking-wide mb-1">{displayName}</p>
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10">
+        {/* Primary: Name — next time */}
+        <p className="text-white font-black text-xl leading-tight tracking-wide">
+          {shortName}
+          <span className={`${nextKind === 'BLOCK' ? 'text-orange-400' : 'text-amber-300'}`}>
+            {' '}— {nextLabel}
+          </span>
+        </p>
 
-        {countdownText !== null ? (
-          // Countdown mode
-          isAvailableNow ? (
-            <p className="text-emerald-400 font-black text-sm leading-tight">Available Now</p>
-          ) : (
-            <p className="text-amber-300 font-black text-sm leading-tight tabular-nums">
-              {countdownText}
-            </p>
-          )
-        ) : isAvailable ? (
-          // Available, no countdown
-          <p className="text-emerald-400 font-black text-sm leading-tight">Available Now</p>
-        ) : apptLabel ? (
-          // Next appt fallback
-          <>
-            <p className="text-zinc-400 text-xs leading-none">{apptLabel}</p>
-            <p className="text-amber-300 font-black text-base leading-tight tracking-wide">{apptTime}</p>
-          </>
-        ) : (
-          <p className="text-zinc-400 font-semibold text-xs leading-tight">{apptTime}</p>
+        {/* Block notes if present */}
+        {nextKind === 'BLOCK' && nextNotes && (
+          <p className="text-orange-300 text-xs mt-0.5 leading-tight opacity-90">{nextNotes}</p>
+        )}
+
+        {/* Countdown when busy */}
+        {countdownText && !isAvailableNow && (
+          <p className="text-amber-300 font-bold text-sm tabular-nums mt-1 leading-tight">
+            {countdownText}
+          </p>
+        )}
+        {isAvailableNow && (
+          <p className="text-emerald-400 font-bold text-sm mt-1 leading-tight">Available Now</p>
         )}
       </div>
 
