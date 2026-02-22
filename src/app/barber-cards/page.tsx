@@ -50,7 +50,7 @@ export default async function BarberCardsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 p-8">
       <h1 className="text-white text-2xl font-bold mb-8">Barber Cards</h1>
-      <div className="flex flex-wrap gap-6">
+      <div className="flex flex-nowrap gap-4">
         {barbers.map((barber) => (
           <BarberCard
             key={barber.id}

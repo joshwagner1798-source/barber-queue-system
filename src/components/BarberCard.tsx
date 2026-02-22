@@ -1,15 +1,15 @@
-// barber_state.state values → display label + colour
-const STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
-  AVAILABLE: { label: 'READY',     classes: 'bg-emerald-500 text-white' },
-  IN_CHAIR:  { label: 'BUSY',      classes: 'bg-amber-500  text-white' },
-  ON_BREAK:  { label: 'ON BREAK',  classes: 'bg-blue-500   text-white' },
-  CLEANUP:   { label: 'BUSY',      classes: 'bg-amber-500  text-white' },
-  OFF:       { label: 'OFF',       classes: 'bg-zinc-600   text-zinc-300' },
-  OTHER:     { label: 'OFF',       classes: 'bg-zinc-600   text-zinc-300' },
+// barber_state.state values → display label + colour + glow
+const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
+  AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',      glow: 'shadow-emerald-500/30' },
+  IN_CHAIR:  { label: 'BUSY',     badge: 'bg-amber-500  text-white',       glow: 'shadow-amber-500/30'   },
+  ON_BREAK:  { label: 'ON BREAK', badge: 'bg-blue-500   text-white',       glow: 'shadow-blue-500/30'    },
+  CLEANUP:   { label: 'BUSY',     badge: 'bg-amber-500  text-white',       glow: 'shadow-amber-500/30'   },
+  OFF:       { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300',    glow: 'shadow-black/40'        },
+  OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300',    glow: 'shadow-black/40'        },
 }
 
 function formatNextAppt(iso: string | null): string {
-  if (!iso) return 'No upcoming appts'
+  if (!iso) return 'No Appts Today'
   const appt = new Date(iso)
   const now = new Date()
   const time = appt.toLocaleTimeString('en-US', {
@@ -17,11 +17,11 @@ function formatNextAppt(iso: string | null): string {
     minute: '2-digit',
     hour12: true,
   })
-  if (appt.toDateString() === now.toDateString()) return `Next: ${time}`
+  if (appt.toDateString() === now.toDateString()) return `Next Appt: ${time}`
   const tomorrow = new Date(now)
   tomorrow.setDate(now.getDate() + 1)
-  if (appt.toDateString() === tomorrow.toDateString()) return `Tomorrow · ${time}`
-  return `${appt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${time}`
+  if (appt.toDateString() === tomorrow.toDateString()) return `Next Appt: Tomorrow ${time}`
+  return `Next Appt: ${appt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`
 }
 
 interface Props {
@@ -46,38 +46,39 @@ export function BarberCard({
   const apptText = formatNextAppt(nextAppointmentAt)
 
   return (
-    <div className="relative w-44 flex flex-col">
-      {/* Status badge — top-right corner */}
-      <div className="absolute top-3 right-3 z-10">
-        <span
-          className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.classes}`}
-        >
+    <div
+      className={`relative w-36 h-56 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10`}
+    >
+      {/* Photo — fills entire card; transparent PNG stands against dark bg */}
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={displayName}
+          className="absolute inset-0 w-full h-full object-contain object-bottom"
+        />
+      ) : (
+        /* Fallback initials */
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-zinc-400 text-4xl font-bold select-none">
+            {firstName.charAt(0)}{lastName.charAt(0)}
+          </span>
+        </div>
+      )}
+
+      {/* Bottom gradient overlay */}
+      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none" />
+
+      {/* Name + appointment info */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5 z-10">
+        <p className="text-white font-bold text-sm leading-tight tracking-wide">{displayName}</p>
+        <p className="text-zinc-300 text-xs mt-0.5 leading-tight">{apptText}</p>
+      </div>
+
+      {/* Status badge — top-right */}
+      <div className="absolute top-2 right-2 z-10">
+        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}>
           {cfg.label}
         </span>
-      </div>
-
-      {/* Photo area — no background; transparent PNG floats freely */}
-      <div className="relative h-52 flex-shrink-0">
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt={displayName}
-            className="absolute bottom-0 left-0 w-full h-full object-contain object-bottom"
-            style={{ background: 'transparent' }}
-          />
-        ) : (
-          /* Fallback initials circle when no photo */
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-300 text-2xl font-bold select-none">
-            {firstName.charAt(0)}
-            {lastName.charAt(0)}
-          </div>
-        )}
-      </div>
-
-      {/* Info strip */}
-      <div className="bg-zinc-800 rounded-2xl border border-zinc-700 shadow-2xl px-4 py-3">
-        <p className="text-white font-bold text-base leading-tight">{displayName}</p>
-        <p className="text-zinc-400 text-xs mt-0.5">{apptText}</p>
       </div>
     </div>
   )
