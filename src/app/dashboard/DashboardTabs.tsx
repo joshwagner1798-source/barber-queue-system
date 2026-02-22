@@ -90,8 +90,19 @@ export function DashboardTabs({
         {activeTab === 'tv' && <FloorDisplay />}
 
         {activeTab === 'kiosk' && (
-          <div className="min-h-full bg-secondary-950 flex items-center justify-center p-8">
-            <KioskForm />
+          <div
+            className="min-h-full flex items-center justify-center p-8 relative overflow-hidden"
+            style={{
+              backgroundImage: "url('/images/shop-bg.png')",
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundColor: '#0c0a09',
+            }}
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none" />
+            <div className="relative z-10 w-full">
+              <KioskForm />
+            </div>
           </div>
         )}
 
