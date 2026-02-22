@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { loginAction } from './actions'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +11,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const router = useRouter()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,9 +21,12 @@ export default function LoginPage() {
       if (result.error) {
         setError(result.error)
       } else {
-        // Navigate only after the server action response (and its Set-Cookie
-        // headers) have been fully processed by the browser.
-        router.push('/dashboard')
+        // Full-page navigation instead of router.push: the App Router client
+        // cache can hold a stale RSC payload for /dashboard from before login
+        // (which encoded a redirect to /login). router.push would serve that
+        // stale payload, re-triggering the redirect. window.location bypasses
+        // the Router Cache entirely and issues a fresh HTTP GET with cookies.
+        window.location.assign('/dashboard')
       }
     })
   }
