@@ -63,11 +63,14 @@ function cleanNote(raw: string | null | undefined): string | null {
 
 export async function GET(request: NextRequest) {
   // ---------------------------------------------------------------------------
-  // Auth: Bearer RECONCILE_SECRET
+  // Auth: Bearer RECONCILE_SECRET  (manual calls)
+  //    or Bearer CRON_SECRET       (Vercel cron — auto-injected by platform)
   // ---------------------------------------------------------------------------
   const auth = request.headers.get('authorization')
-  const secret = process.env.RECONCILE_SECRET
-  if (!secret || auth !== `Bearer ${secret}`) {
+  const reconcileSecret = process.env.RECONCILE_SECRET
+  const cronSecret = process.env.CRON_SECRET
+  const validTokens = [reconcileSecret, cronSecret].filter(Boolean)
+  if (validTokens.length === 0 || !validTokens.some((t) => auth === `Bearer ${t}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
