@@ -110,21 +110,8 @@ export function BarberCard({
 
   const isAvailableNow = countdownText === 'Available Now'
 
-  // ── Build the single info line ─────────────────────────────────────────────
-  let infoLine: string
-  let infoColor: string
-
-  if (busyReason === 'blocked') {
-    infoLine  = `Blocked — ${blockedNoteShort ?? 'Blocked'}`
-    infoColor = 'text-orange-400'
-  } else if (nextApptAt) {
-    const when = formatTime(nextApptAt)
-    infoLine  = `Next appt ${when}${nextApptClientFirst ? ` — ${nextApptClientFirst}` : ''}`
-    infoColor = 'text-amber-300'
-  } else {
-    infoLine  = 'No appts'
-    infoColor = 'text-zinc-400'
-  }
+  // ── Build row-2 info pieces ───────────────────────────────────────────────
+  const apptTime = nextApptAt ? formatTime(nextApptAt) : null
 
   return (
     <div
@@ -156,20 +143,39 @@ export function BarberCard({
         </div>
       )}
 
-      {/* Bottom gradient — tall enough to cover wrapped text */}
-      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
+      {/* Bottom gradient */}
+      <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
 
-      {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-6 z-10">
-        {/* Info line — wraps freely, no truncation */}
-        <p className="text-white font-black text-[1.35rem] whitespace-normal break-words leading-tight tracking-wide drop-shadow-lg">
-          <span className="text-white">{shortName}</span>
-          <span className="text-white/40"> | </span>
-          <span className={infoColor}>{infoLine}</span>
+      {/* Info overlay — 2 rows */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
+
+        {/* Row 1: Barber name */}
+        <p className="text-white font-black text-xl leading-tight drop-shadow-lg">
+          {shortName}
         </p>
 
+        {/* Row 2: Appointment info */}
+        <div className="mt-1 leading-snug drop-shadow-lg text-base font-semibold">
+          {busyReason === 'blocked' ? (
+            <p className="text-orange-400 break-words">
+              {blockedNoteShort ? `Blocked — ${blockedNoteShort}` : 'Blocked'}
+            </p>
+          ) : apptTime ? (
+            <p className="text-amber-300">
+              {/* "Next 6:00 PM" stays on one piece; client name can wrap after the dash */}
+              <span className="whitespace-nowrap text-white/60">Next </span>
+              <span className="whitespace-nowrap">{apptTime}</span>
+              {nextApptClientFirst && (
+                <><span className="whitespace-nowrap"> —</span> {nextApptClientFirst}</>
+              )}
+            </p>
+          ) : (
+            <p className="text-zinc-400">No appts</p>
+          )}
+        </div>
+
         {/* Countdown */}
-        <div className="h-6 mt-1">
+        <div className="h-5 mt-1">
           {countdownText && !isAvailableNow ? (
             <p className="text-amber-300 font-bold text-sm tabular-nums leading-tight">
               {countdownText}
