@@ -77,3 +77,32 @@ export async function fetchBlocks(
 export async function fetchCalendars(): Promise<AcuityCalendar[]> {
   return acuityFetch<AcuityCalendar[]>('/calendars')
 }
+
+/**
+ * Fetch a single appointment by its Acuity ID.
+ * Used by the webhook handler to hydrate a minimal payload.
+ */
+export async function fetchAppointmentById(id: string): Promise<AcuityAppointment> {
+  return acuityFetch<AcuityAppointment>(`/appointments/${id}`)
+}
+
+/**
+ * List appointments across an optional calendar within a date range.
+ * Includes canceled appointments (caller decides how to handle them).
+ */
+export async function fetchAppointmentsList(params: {
+  calendarID?: string
+  minDate: string // YYYY-MM-DD
+  maxDate: string // YYYY-MM-DD
+}): Promise<AcuityAppointment[]> {
+  const query: Record<string, string> = {
+    minDate: params.minDate,
+    maxDate: params.maxDate,
+    // Do NOT pass canceled= at all: omitting it returns both active and canceled.
+    // canceled=true means "only canceled"; canceled=false means "only active".
+  }
+  if (params.calendarID) {
+    query.calendarID = params.calendarID
+  }
+  return acuityFetch<AcuityAppointment[]>('/appointments', query)
+}
