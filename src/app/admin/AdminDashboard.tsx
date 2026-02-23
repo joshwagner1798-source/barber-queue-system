@@ -6,6 +6,7 @@ import { BarbersBar } from './BarbersBar'
 import { LiveQueuePanel } from './LiveQueuePanel'
 import { EventLogPanel } from './EventLogPanel'
 import { BarberPhotosPanel } from './BarberPhotosPanel'
+import { DisplayBackgroundsPanel } from './DisplayBackgroundsPanel'
 import type { BarberInfo, QueueEntry, EventEntry, BarberManualState } from '@/types/dashboard'
 
 interface RawWalkin {
@@ -174,6 +175,9 @@ export function AdminDashboard({ currentUserName, shopId, initialWalkins, initia
 
       {/* Photo management */}
       <BarberPhotosPanel />
+
+      {/* Display background customization */}
+      <DisplayBackgroundsPanel />
     </div>
   )
 }
