@@ -130,6 +130,17 @@ export function BarberCard({
     <div
       className={`relative w-44 h-72 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10${className ? ` ${className}` : ''}`}
     >
+      {/* Per-card status glow — clipped by overflow-hidden, can't bleed out */}
+      {status === 'AVAILABLE' && (
+        <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
+      )}
+      {status === 'IN_CHAIR' && (
+        <div className="absolute inset-0 bg-amber-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
+      )}
+      {status === 'ON_BREAK' && (
+        <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" style={{ zIndex: 0 }} />
+      )}
+
       {/* Photo — full-bleed */}
       {avatarUrl ? (
         <img
