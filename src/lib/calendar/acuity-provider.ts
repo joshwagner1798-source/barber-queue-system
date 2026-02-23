@@ -15,7 +15,7 @@ import {
   fetchBlocks,
   fetchCalendars,
 } from './acuity-client'
-import type { AcuityAppointment } from '@/types/acuity'
+import type { AcuityAppointment, AcuityBlock } from '@/types/acuity'
 
 /** Format a Date as YYYY-MM-DD for Acuity API date params. */
 function toDateStr(d: Date): string {
@@ -87,5 +87,17 @@ export class AcuityProvider implements CalendarProvider {
     maxDate: string
   }): Promise<AcuityAppointment[]> {
     return fetchAppointmentsList(params)
+  }
+
+  /**
+   * List blocked times for a specific calendar within a date window.
+   * Uses the same auth and date format as listAppointments.
+   */
+  async listBlocks(params: {
+    calendarID: string
+    minDate: string
+    maxDate: string
+  }): Promise<AcuityBlock[]> {
+    return fetchBlocks(Number(params.calendarID), params.minDate, params.maxDate)
   }
 }
