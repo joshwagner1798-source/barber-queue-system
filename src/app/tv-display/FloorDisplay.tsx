@@ -36,10 +36,11 @@ interface TVBarber {
   last_name: string
   avatar_url: string | null
   display_order: number
+  status: 'BUSY' | 'FREE' | 'UNAVAILABLE'
   busy_reason: 'appointment' | 'blocked' | null
   free_at: string | null
   blocked_until: string | null
-  blocked_note_short: string | null
+  blocked_note: string | null
   next_appt_at: string | null
   next_client_name: string | null
 }
@@ -189,13 +190,16 @@ export function FloorDisplay() {
             {sortedBarbers.map((b) => {
               const bs = statuses.find((s) => s.barber_id === b.id)
 
-              // Derive card status: prefer live barber_status; fall back to appointments
+              // Derive card status.
+              // Priority 1: live barber_status override (manual toggle)
+              // Priority 2: API status field (BLOCKED via provider_blocks, BUSY via appointments)
               const cardStatus =
                 bs?.status === 'FREE'        ? 'AVAILABLE' :
                 bs?.status === 'BUSY'        ? 'IN_CHAIR'  :
                 bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  :
-                b.busy_reason === 'appointment' ? 'IN_CHAIR' :
-                b.busy_reason === 'blocked'     ? 'BLOCKED'  :
+                b.status === 'UNAVAILABLE' && b.busy_reason === 'blocked' ? 'BLOCKED'   :
+                b.status === 'BUSY'                                        ? 'IN_CHAIR'  :
+                b.status === 'FREE'                                        ? 'AVAILABLE' :
                 'AVAILABLE'
 
               return (
@@ -218,7 +222,7 @@ export function FloorDisplay() {
                       nextApptAt={b.next_appt_at}
                       nextClientName={b.next_client_name}
                       busyReason={b.busy_reason}
-                      blockedNoteShort={b.blocked_note_short}
+                      blockedNoteShort={b.blocked_note}
                       blockedUntil={b.blocked_until}
                       freeAt={b.free_at}
                       className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
