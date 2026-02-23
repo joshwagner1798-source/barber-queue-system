@@ -62,12 +62,16 @@ function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): numb
   return Math.max(0, Math.round((Math.min(...freeAts) - Date.now()) / 1000))
 }
 
-
 // ---------------------------------------------------------------------------
 // FloorDisplay
 // ---------------------------------------------------------------------------
 
-export function FloorDisplay() {
+interface Props {
+  /** Custom background URL from shop_settings; falls back to default image. */
+  backgroundUrl?: string
+}
+
+export function FloorDisplay({ backgroundUrl }: Props) {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins]   = useState<TVWalkin[]>([])
   const [barbers, setBarbers]   = useState<TVBarber[]>([])
@@ -127,7 +131,6 @@ export function FloorDisplay() {
     return [...barbers].sort((a, b) => {
       const sa = statuses.find((s) => s.barber_id === a.id)
       const sb = statuses.find((s) => s.barber_id === b.id)
-      // barber_status manual override takes priority over API status for sort
       const effA = sa?.status ?? a.status
       const effB = sb?.status ?? b.status
       return sortKey(effA, sa?.free_at, a.free_at) - sortKey(effB, sb?.free_at, b.free_at)
@@ -150,29 +153,32 @@ export function FloorDisplay() {
         : null,
     }))
 
-
   const mm = String(Math.floor(displaySecs / 60)).padStart(2, '0')
   const ss = String(displaySecs % 60).padStart(2, '0')
   const anyFree = statuses.some((s) => s.status === 'FREE')
 
+  const bgImage = backgroundUrl ?? '/images/shop-bg.png'
+  // Number of columns = exact barber count so nothing ever wraps
+  const colCount = Math.max(sortedBarbers.length, 1)
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="min-h-screen flex relative overflow-hidden"
+      className="h-screen flex relative overflow-hidden"
       style={{
-        backgroundImage: "url('/images/shop-bg.png')",
+        backgroundImage: `url('${bgImage}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        backgroundColor: '#0c0a09', // fallback when image absent
+        backgroundColor: '#0c0a09',
       }}
     >
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] pointer-events-none" />
 
       {/* ── Main area ──────────────────────────────────────────────────── */}
-      <div className="relative flex-1 flex flex-col p-6 overflow-hidden min-h-0 z-10">
-        <header className="mb-4 flex-shrink-0 relative flex items-start justify-between">
+      <div className="relative flex-1 flex flex-col p-6 min-h-0 z-10 overflow-hidden">
+        <header className="mb-3 flex-shrink-0 relative flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white drop-shadow-lg">Sharper Image</h1>
             <p className="text-white/60 text-base">Live Barber Status</p>
@@ -184,8 +190,18 @@ export function FloorDisplay() {
           <FullscreenButton />
         </header>
 
-        {/* Barber card grid — wraps gracefully if >6 barbers */}
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] w-full">
+        {/*
+          Barber card grid — one row, N equal columns.
+          grid-template-rows:1fr makes the single row fill all remaining height.
+          Cards receive h-full so the photo section scales to match.
+        */}
+        <div
+          className="flex-1 min-h-0 grid gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+            gridTemplateRows: '1fr',
+          }}
+        >
           <AnimatePresence mode="popLayout" initial={false}>
             {sortedBarbers.map((b) => {
               const bs = statuses.find((s) => s.barber_id === b.id)
@@ -211,6 +227,7 @@ export function FloorDisplay() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                  className="h-full min-h-0"
                 >
                   <BarberCard
                     firstName={b.first_name}
@@ -223,7 +240,7 @@ export function FloorDisplay() {
                     blockedNoteShort={b.blocked_note}
                     freeAt={b.free_at}
                     offLabel={b.off_label}
-                    className="h-[62vh] min-h-[480px]"
+                    className="h-full"
                   />
                 </motion.div>
               )
@@ -249,6 +266,7 @@ export function FloorDisplay() {
           ) : waitingEntries.length > 0 ? (
             <p className="text-white/50 text-sm mt-3">{waitingEntries.length} waiting</p>
           ) : null}
+          <p className="text-white/30 text-xs mt-3">Shop Hours: 9:00 AM – 7:00 PM</p>
         </div>
 
         <div className="flex-1 overflow-y-auto">

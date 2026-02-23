@@ -1,4 +1,5 @@
 import { KioskForm } from './KioskForm'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = {
   title: 'Walk-In Sign Up | Sharper Image',
@@ -6,12 +7,24 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-export default function KioskPage() {
+const SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
+
+export default async function KioskPage() {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('shop_settings')
+    .select('kiosk_background_url')
+    .eq('shop_id', SHOP_ID)
+    .maybeSingle()
+
+  const bgUrl = (data as { kiosk_background_url: string | null } | null)?.kiosk_background_url
+    ?? '/images/shop-bg.png'
+
   return (
     <main
       className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
       style={{
-        backgroundImage: "url('/images/shop-bg.png')",
+        backgroundImage: `url('${bgUrl}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
