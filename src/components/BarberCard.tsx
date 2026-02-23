@@ -36,7 +36,7 @@ function formatTime(iso: string): string {
   const tomorrowStr = nyDateFmt.format(new Date(Date.UTC(yr, mo - 1, dy + 1)))
   const time = nyTimeFmt.format(d)
   if (dDate === todayStr)    return time
-  if (dDate === tomorrowStr) return `Tomorrow ${time}`
+  if (dDate === tomorrowStr) return `Tom ${time}`
   return `${nyMonthDayFmt.format(d)} ${time}`
 }
 
@@ -62,11 +62,9 @@ interface Props {
   busyReason?: 'appointment' | 'blocked' | null
   /** Pre-computed note for the current block (always 'Blocked' if no note) */
   blockedNoteShort?: string | null
-  /** ISO end of current block — kept for prop compat, no longer rendered */
-  blockedUntil?: string | null
-  /** ISO end of current appointment/block — drives countdown for IN_CHAIR */
+  /** ISO end of current appointment/block — drives countdown for IN_CHAIR/BLOCKED */
   freeAt?: string | null
-  /** Label for OFF state, e.g. "Off Sunday" or "Off until 1:00 PM" */
+  /** Label for OFF state, e.g. "Off until Wed 10:20 AM" */
   offLabel?: string | null
   className?: string
   imageClassName?: string
@@ -81,7 +79,6 @@ export function BarberCard({
   nextClientName = null,
   busyReason = null,
   blockedNoteShort = null,
-  blockedUntil: _blockedUntil = null,
   freeAt = null,
   offLabel = null,
   className,
@@ -107,85 +104,90 @@ export function BarberCard({
 
   const apptTime = nextApptAt ? formatTime(nextApptAt) : null
 
-  // Right side of the main footer line
-  const rightText = isOff
-    ? (offLabel ?? 'Off Today')
-    : apptTime
-      ? `Next: ${apptTime}${nextClientName ? ` — ${nextClientName}` : ''}`
-      : 'Next: —'
+  // Next appointment line — shown always (even when blocked or off)
+  const nextApptText = apptTime
+    ? `Next ${apptTime}${nextClientName ? ` (${nextClientName})` : ''}`
+    : 'No appts'
 
   return (
     <div
-      className={`relative w-44 h-72 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10${className ? ` ${className}` : ''}`}
+      className={`relative flex flex-col rounded-xl ring-1 ring-white/10 shadow-xl ${cfg.glow} bg-zinc-900${className ? ` ${className}` : ''}`}
     >
-      {/* Per-card status glow */}
-      {status === 'AVAILABLE' && (
-        <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
-      )}
-      {status === 'IN_CHAIR' && (
-        <div className="absolute inset-0 bg-amber-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
-      )}
-      {status === 'ON_BREAK' && (
-        <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" style={{ zIndex: 0 }} />
-      )}
-      {status === 'BLOCKED' && (
-        <div className="absolute inset-0 bg-red-600/30 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
-      )}
+      {/* ── Photo section (overflow-hidden confined here only) ── */}
+      <div className="relative overflow-hidden rounded-t-xl flex-1 min-h-0">
+        {/* Per-card status glow */}
+        {status === 'AVAILABLE' && (
+          <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none z-0" />
+        )}
+        {status === 'IN_CHAIR' && (
+          <div className="absolute inset-0 bg-amber-500/20 animate-pulse pointer-events-none z-0" />
+        )}
+        {status === 'ON_BREAK' && (
+          <div className="absolute inset-0 bg-blue-500/15 pointer-events-none z-0" />
+        )}
+        {status === 'BLOCKED' && (
+          <div className="absolute inset-0 bg-red-600/30 animate-pulse pointer-events-none z-0" />
+        )}
 
-      {/* Photo */}
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={shortName}
-          className={`absolute inset-0 w-full h-full object-cover object-top${imageClassName ? ` ${imageClassName}` : ''}`}
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-zinc-400 text-4xl font-bold select-none">
-            {firstName.charAt(0)}{lastName.charAt(0)}
+        {/* Photo */}
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={shortName}
+            className={`absolute inset-0 w-full h-full object-cover object-top${imageClassName ? ` ${imageClassName}` : ''}`}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-zinc-400 text-4xl font-bold select-none">
+              {firstName.charAt(0)}{lastName.charAt(0)}
+            </span>
+          </div>
+        )}
+
+        {/* Bottom gradient */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+
+        {/* Status badge — top-right, inside photo area */}
+        <div className="absolute top-2 right-2 z-10">
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}>
+            {cfg.label}
           </span>
         </div>
-      )}
+      </div>
 
-      {/* Bottom gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
-
-      {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10 flex flex-col gap-0.5">
-
-        {/* Main line: "Name | Next: 2:30 PM — Tom"  or  "Name | Off Sunday" */}
-        <p className="text-white font-black text-xl leading-tight drop-shadow-lg whitespace-nowrap overflow-hidden text-ellipsis">
+      {/* ── Text section — NO overflow-hidden, text never clipped ── */}
+      <div className="px-3 pt-2 pb-3 bg-black/90 rounded-b-xl">
+        {/* Main line: "Josh W. — Next 2:30 PM (Tom)"  or  "Josh W. — No appts" */}
+        <p className="text-white font-black text-lg leading-snug break-words whitespace-normal">
           {shortName}{' '}
-          <span className="font-normal text-white/40">|</span>{' '}
+          <span className="font-normal text-white/40">—</span>{' '}
           <span className={`font-semibold ${isOff ? 'text-zinc-400' : 'text-amber-300'}`}>
-            {rightText}
+            {nextApptText}
           </span>
         </p>
 
-        {/* Blocked note — only when actively blocked (not OFF) */}
-        {isBlocked && !isOff && blockedNoteShort && (
-          <p className="text-red-400 text-sm font-bold break-words leading-tight drop-shadow-lg">
+        {/* Blocked note — only when actively blocked */}
+        {isBlocked && blockedNoteShort && (
+          <p className="text-red-400 text-sm font-bold break-words leading-tight mt-0.5">
             {blockedNoteShort}
           </p>
         )}
 
-        {/* Live countdown — shown for BLOCKED and IN_CHAIR */}
-        <div className="h-4">
-          {countdownText && !isAvailableNow ? (
-            <p className={`font-bold text-xs tabular-nums leading-tight ${isBlocked ? 'text-red-300' : 'text-amber-300'}`}>
-              {countdownText}
-            </p>
-          ) : isAvailableNow ? (
-            <p className="text-emerald-400 font-bold text-xs leading-tight">Available Now</p>
-          ) : null}
-        </div>
-      </div>
+        {/* Off label */}
+        {isOff && offLabel && (
+          <p className="text-zinc-400 text-sm leading-tight mt-0.5 break-words">
+            {offLabel}
+          </p>
+        )}
 
-      {/* Status badge — top-right */}
-      <div className="absolute top-2 right-2 z-10">
-        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}>
-          {cfg.label}
-        </span>
+        {/* Live countdown — shown for BLOCKED and IN_CHAIR */}
+        {countdownText && !isAvailableNow ? (
+          <p className={`font-bold text-xs tabular-nums leading-tight mt-0.5 ${isBlocked ? 'text-red-300' : 'text-amber-300'}`}>
+            {countdownText}
+          </p>
+        ) : isAvailableNow ? (
+          <p className="text-emerald-400 font-bold text-xs leading-tight mt-0.5">Available Now</p>
+        ) : null}
       </div>
     </div>
   )

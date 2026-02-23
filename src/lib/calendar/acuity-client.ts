@@ -6,6 +6,9 @@ import type {
   AcuityAppointment,
   AcuityBlock,
   AcuityCalendar,
+  AcuityAppointmentType,
+  AcuityAvailabilityDate,
+  AcuityAvailabilityTime,
 } from '@/types/acuity'
 
 const ACUITY_BASE = 'https://acuityscheduling.com/api/v1'
@@ -105,4 +108,44 @@ export async function fetchAppointmentsList(params: {
     query.calendarID = params.calendarID
   }
   return acuityFetch<AcuityAppointment[]>('/appointments', query)
+}
+
+/**
+ * Fetch all appointment types configured in the Acuity account.
+ * Each type includes calendarIDs — which calendars can fulfil it.
+ */
+export async function fetchAppointmentTypes(): Promise<AcuityAppointmentType[]> {
+  return acuityFetch<AcuityAppointmentType[]>('/appointment-types')
+}
+
+/**
+ * Fetch available dates for a calendar + appointment type in a given month.
+ * @param month YYYY-MM
+ */
+export async function fetchAvailabilityDates(
+  calendarId: number,
+  appointmentTypeId: number,
+  month: string, // YYYY-MM
+): Promise<AcuityAvailabilityDate[]> {
+  return acuityFetch<AcuityAvailabilityDate[]>('/availability/dates', {
+    calendarID: String(calendarId),
+    appointmentTypeID: String(appointmentTypeId),
+    month,
+  })
+}
+
+/**
+ * Fetch available time slots for a calendar + appointment type on a specific date.
+ * @param date YYYY-MM-DD
+ */
+export async function fetchAvailabilityTimes(
+  calendarId: number,
+  appointmentTypeId: number,
+  date: string, // YYYY-MM-DD
+): Promise<AcuityAvailabilityTime[]> {
+  return acuityFetch<AcuityAvailabilityTime[]>('/availability/times', {
+    calendarID: String(calendarId),
+    appointmentTypeID: String(appointmentTypeId),
+    date,
+  })
 }

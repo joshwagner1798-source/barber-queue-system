@@ -88,6 +88,9 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
   const provider = new AcuityProvider()
 
+  // Today in NY (YYYY-MM-DD) — used for availability checks
+  const todayNy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date())
+
   // ---------------------------------------------------------------------------
   // Windows
   // Appointments: -7 days → +30 days
@@ -111,6 +114,24 @@ export async function GET(request: NextRequest) {
 
   if (connErr) {
     return NextResponse.json({ error: connErr.message }, { status: 500 })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 1b: Fetch appointment types once; build calendarID → appointmentTypeID map
+  // ---------------------------------------------------------------------------
+  let apptTypeByCalendar = new Map<number, number>()
+  try {
+    const apptTypes = await provider.listAppointmentTypes()
+    for (const t of apptTypes) {
+      if (!t.active) continue
+      for (const calId of t.calendarIDs) {
+        if (!apptTypeByCalendar.has(calId)) apptTypeByCalendar.set(calId, t.id)
+      }
+    }
+    console.log(`[AVAIL] Loaded ${apptTypes.length} appointment types, covering ${apptTypeByCalendar.size} calendars`)
+  } catch (err) {
+    console.error(`[AVAIL] Failed to load appointment types: ${err instanceof Error ? err.message : err}`)
+    apptTypeByCalendar = new Map()
   }
 
   // Pre-fetch barber names for debug logging
@@ -247,12 +268,55 @@ export async function GET(request: NextRequest) {
         if (blockUpsertErr) throw new Error(`provider_appointments blocks upsert: ${blockUpsertErr.message}`)
       }
 
-      // Update connection health
+      // ── Availability: compute off_until_at ───────────────────────────────
+      const apptTypeId = apptTypeByCalendar.get(Number(conn.provider_calendar_id))
+      let offUntilAt: string | null = null
+      if (apptTypeId) {
+        try {
+          offUntilAt = await provider.getNextAvailableTime({
+            calendarID: conn.provider_calendar_id,
+            appointmentTypeID: String(apptTypeId),
+            todayNy,
+          })
+          console.log(`[AVAIL] ${barberName}: availability API → off_until_at=${offUntilAt ?? 'working today (open slots)'}`)
+        } catch (err) {
+          console.error(`[AVAIL] ${barberName}: getNextAvailableTime failed: ${err instanceof Error ? err.message : err}`)
+        }
+      } else {
+        console.log(`[AVAIL] ${barberName}: no appointment type found for calendar ${conn.provider_calendar_id}`)
+      }
+
+      // Cross-check: the availability API only shows open booking slots, not existing appointments.
+      // If a barber is fully booked on a day, the API skips it — but they ARE physically working.
+      // Use the first existing (non-cancelled) appointment to correct the off_until_at.
+      if (offUntilAt !== null) {
+        const nyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' })
+        const firstFutureAppt = appointments
+          .filter((a) => !a.canceled && !a.noShow)
+          .map((a) => ({ date: nyFmt.format(new Date(a.datetime)), dt: new Date(a.datetime) }))
+          .filter(({ date }) => date >= todayNy)
+          .sort((a, b) => a.dt.getTime() - b.dt.getTime())[0]
+
+        if (firstFutureAppt) {
+          if (firstFutureAppt.date === todayNy) {
+            // Has appointments today (fully booked, no open slots) → still working today
+            offUntilAt = null
+            console.log(`[AVAIL] ${barberName}: fully booked today → overriding to working today`)
+          } else if (firstFutureAppt.dt.getTime() < new Date(offUntilAt).getTime()) {
+            // First appointment is earlier than first open slot → use it
+            offUntilAt = firstFutureAppt.dt.toISOString()
+            console.log(`[AVAIL] ${barberName}: first appt on ${firstFutureAppt.date} is before open slot → off_until_at=${offUntilAt}`)
+          }
+        }
+      }
+
+      // Update connection health + off_until_at
       await admin
         .from('calendar_connections')
         .update({
           last_sync_at: new Date().toISOString(),
           sync_health: 'OK',
+          off_until_at: offUntilAt,
         } as never)
         .eq('id', conn.id)
 

@@ -44,6 +44,7 @@ interface TVBarber {
   next_appt_at: string | null
   next_client_name: string | null
   off_label: string | null
+  off_until_at: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -181,8 +182,8 @@ export function FloorDisplay() {
           </div>
         </header>
 
-        {/* Barber card row — animated "race" */}
-        <div className="flex gap-4 w-full flex-1 min-h-0 items-stretch">
+        {/* Barber card grid — wraps gracefully if >6 barbers */}
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] w-full">
           <AnimatePresence mode="popLayout" initial={false}>
             {sortedBarbers.map((b) => {
               const bs = statuses.find((s) => s.barber_id === b.id)
@@ -208,25 +209,20 @@ export function FloorDisplay() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-                  className="relative flex-1 min-w-0"
                 >
-                  {/* Card */}
-                  <div className="relative">
-                    <BarberCard
-                      firstName={b.first_name}
-                      lastName={b.last_name}
-                      avatarUrl={b.avatar_url}
-                      status={cardStatus}
-                      nextApptAt={b.next_appt_at}
-                      nextClientName={b.next_client_name}
-                      busyReason={b.busy_reason}
-                      blockedNoteShort={b.blocked_note}
-                      blockedUntil={b.blocked_until}
-                      freeAt={b.free_at}
-                      offLabel={b.off_label}
-                      className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
-                    />
-                  </div>
+                  <BarberCard
+                    firstName={b.first_name}
+                    lastName={b.last_name}
+                    avatarUrl={b.avatar_url}
+                    status={cardStatus}
+                    nextApptAt={b.next_appt_at}
+                    nextClientName={b.next_client_name}
+                    busyReason={b.busy_reason}
+                    blockedNoteShort={b.blocked_note}
+                    freeAt={b.free_at}
+                    offLabel={b.off_label}
+                    className="h-[62vh] min-h-[480px]"
+                  />
                 </motion.div>
               )
             })}
