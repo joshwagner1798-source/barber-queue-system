@@ -36,25 +36,19 @@ interface TVBarber {
   last_name: string
   avatar_url: string | null
   display_order: number
-  status: 'BUSY' | 'FREE' | 'UNAVAILABLE'
+  status: 'BUSY' | 'FREE' | 'UNAVAILABLE' | 'OFF'
   busy_reason: 'appointment' | 'blocked' | null
   free_at: string | null
   blocked_until: string | null
   blocked_note: string | null
   next_appt_at: string | null
   next_client_name: string | null
+  off_label: string | null
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function statusRank(tvStatus?: string): number {
-  if (tvStatus === 'FREE')         return 0
-  if (tvStatus === 'BUSY')         return 1
-  if (tvStatus === 'UNAVAILABLE')  return 2
-  return 3
-}
 
 function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): number {
   if (waitingCount === 0) return 0
@@ -116,22 +110,25 @@ export function FloorDisplay() {
     return () => clearInterval(id)
   }, [])
 
-  // ── "Race" sort: FREE first → BUSY by freeAt → UNAVAILABLE → OFF ──────────
+  // ── "Race to free" sort: soonest free first, OFF always last ──────────────
   const sortedBarbers = useMemo(() => {
+    const sortKey = (
+      effStatus: string,
+      bsFreeAt: string | null | undefined,
+      apiFreeAt: string | null,
+    ): number => {
+      if (effStatus === 'OFF')  return Number.MAX_SAFE_INTEGER
+      if (effStatus === 'FREE') return 0
+      const fa = bsFreeAt ?? apiFreeAt
+      return fa ? new Date(fa).getTime() : Date.now() + 4 * 60 * 60 * 1000
+    }
     return [...barbers].sort((a, b) => {
       const sa = statuses.find((s) => s.barber_id === a.id)
       const sb = statuses.find((s) => s.barber_id === b.id)
-      // Derive effective TV status from barber_status or busy_reason fallback
-      // blocked → UNAVAILABLE rank so blocked barbers sort after BUSY
-      const tvA = sa?.status ?? (a.busy_reason === 'appointment' ? 'BUSY' : a.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
-      const tvB = sb?.status ?? (b.busy_reason === 'appointment' ? 'BUSY' : b.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
-      const ra = statusRank(tvA)
-      const rb = statusRank(tvB)
-      if (ra !== rb) return ra - rb
-      // Tiebreak: soonest free first; use barber_status.free_at or appointment free_at
-      const fa = (sa?.free_at ?? a.free_at) ? new Date((sa?.free_at ?? a.free_at)!).getTime() : Infinity
-      const fb = (sb?.free_at ?? b.free_at) ? new Date((sb?.free_at ?? b.free_at)!).getTime() : Infinity
-      return fa - fb
+      // barber_status manual override takes priority over API status for sort
+      const effA = sa?.status ?? a.status
+      const effB = sb?.status ?? b.status
+      return sortKey(effA, sa?.free_at, a.free_at) - sortKey(effB, sb?.free_at, b.free_at)
     })
   }, [barbers, statuses])
 
@@ -192,11 +189,12 @@ export function FloorDisplay() {
 
               // Derive card status.
               // Priority 1: live barber_status override (manual toggle)
-              // Priority 2: API status field (BLOCKED via provider_blocks, BUSY via appointments)
+              // Priority 2: API status field (OFF / BLOCKED / BUSY / FREE)
               const cardStatus =
                 bs?.status === 'FREE'        ? 'AVAILABLE' :
                 bs?.status === 'BUSY'        ? 'IN_CHAIR'  :
                 bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  :
+                b.status === 'OFF'                                         ? 'OFF'       :
                 b.status === 'UNAVAILABLE' && b.busy_reason === 'blocked' ? 'BLOCKED'   :
                 b.status === 'BUSY'                                        ? 'IN_CHAIR'  :
                 b.status === 'FREE'                                        ? 'AVAILABLE' :
@@ -225,6 +223,7 @@ export function FloorDisplay() {
                       blockedNoteShort={b.blocked_note}
                       blockedUntil={b.blocked_until}
                       freeAt={b.free_at}
+                      offLabel={b.off_label}
                       className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
                     />
                   </div>
