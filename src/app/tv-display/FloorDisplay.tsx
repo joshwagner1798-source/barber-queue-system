@@ -38,9 +38,10 @@ interface TVBarber {
   display_order: number
   busy_reason: 'appointment' | 'blocked' | null
   free_at: string | null
+  blocked_until: string | null
   blocked_note_short: string | null
   next_appt_at: string | null
-  next_appt_client_first: string | null
+  next_client_name: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +150,7 @@ export function FloorDisplay() {
         : null,
     }))
 
+
   const mm = String(Math.floor(displaySecs / 60)).padStart(2, '0')
   const ss = String(displaySecs % 60).padStart(2, '0')
   const anyFree = statuses.some((s) => s.status === 'FREE')
@@ -214,9 +216,10 @@ export function FloorDisplay() {
                       avatarUrl={b.avatar_url}
                       status={cardStatus}
                       nextApptAt={b.next_appt_at}
-                      nextApptClientFirst={b.next_appt_client_first}
+                      nextClientName={b.next_client_name}
                       busyReason={b.busy_reason}
                       blockedNoteShort={b.blocked_note_short}
+                      blockedUntil={b.blocked_until}
                       freeAt={b.free_at}
                       className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
                     />

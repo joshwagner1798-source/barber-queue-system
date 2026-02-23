@@ -5,13 +5,14 @@
 // [-7 days, +30 days] window, upserts them into provider_appointments, then
 // marks rows that weren't returned by Acuity as DELETED (drift repair).
 //
+// Blocks use a tighter window: [-1 day, +14 days] per spec.
+//
 // Auth: requires  Authorization: Bearer <RECONCILE_SECRET>
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AcuityProvider } from '@/lib/calendar/acuity-provider'
-import { fetchBlocks } from '@/lib/calendar/acuity-client'
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -45,6 +46,21 @@ function parseEndTime(endTime: string, datetime: string): string {
   return new Date(`${dateStr}T${hhMM}:00${tz}`).toISOString()
 }
 
+/** Clean and truncate a block note to 40 chars for display. Always returns a string. */
+function blockNoteShort(notes: string | null | undefined): string {
+  if (!notes) return 'Blocked'
+  const clean = notes.replace(/\n/g, ' ').trim()
+  if (!clean) return 'Blocked'
+  return clean.length <= 40 ? clean : clean.slice(0, 40).trimEnd() + '…'
+}
+
+/** Strip newlines/trim for storage; returns null if empty. */
+function cleanNote(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const clean = raw.replace(/\n/g, ' ').trim()
+  return clean || null
+}
+
 export async function GET(request: NextRequest) {
   // ---------------------------------------------------------------------------
   // Auth: Bearer RECONCILE_SECRET
@@ -69,11 +85,15 @@ export async function GET(request: NextRequest) {
   const provider = new AcuityProvider()
 
   // ---------------------------------------------------------------------------
-  // Reconcile window: -7 days → +30 days (UTC)
+  // Windows
+  // Appointments: -7 days → +30 days
+  // Blocks:       -1 day  → +14 days  (per spec)
   // ---------------------------------------------------------------------------
   const reconcileStartedAt = new Date()
-  const windowStart = new Date(reconcileStartedAt.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const windowEnd = new Date(reconcileStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const windowStart    = new Date(reconcileStartedAt.getTime() -  7 * 24 * 60 * 60 * 1000)
+  const windowEnd      = new Date(reconcileStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const blockWinStart  = new Date(reconcileStartedAt.getTime() -  1 * 24 * 60 * 60 * 1000)
+  const blockWinEnd    = new Date(reconcileStartedAt.getTime() + 14 * 24 * 60 * 60 * 1000)
 
   // ---------------------------------------------------------------------------
   // Step 1: Fetch active calendar connections for this shop
@@ -91,15 +111,17 @@ export async function GET(request: NextRequest) {
 
   const results: Array<{
     calendarId: string
-    upserted: number
+    appts: number
+    blocks: number
     error?: string
   }> = []
 
   // ---------------------------------------------------------------------------
-  // Step 2: For each connection, list appointments and upsert
+  // Step 2: For each connection, sync appointments then blocks
   // ---------------------------------------------------------------------------
   for (const conn of (connections as unknown as { id: string; barber_id: string; provider_calendar_id: string }[]) ?? []) {
     try {
+      // ── Appointments ───────────────────────────────────────────────────────
       const appointments = await provider.listAppointments({
         calendarID: conn.provider_calendar_id,
         minDate: toDateStr(windowStart),
@@ -111,7 +133,6 @@ export async function GET(request: NextRequest) {
         barber_id: conn.barber_id,
         provider: 'acuity',
         provider_appointment_id: String(a.id),
-        // provider_calendar_id always stored as string
         provider_calendar_id: String(a.calendarID),
         kind: 'appointment',
         start_at: new Date(a.datetime).toISOString(),
@@ -119,7 +140,6 @@ export async function GET(request: NextRequest) {
         status: a.canceled ? 'CANCELLED' : 'ACTIVE',
         client_name: [a.firstName, a.lastName].filter(Boolean).join(' ') || null,
         notes: null,
-        // Stamp with reconcileStartedAt so drift repair can identify stale rows
         last_seen_at: reconcileStartedAt.toISOString(),
         payload_json: a as unknown as Record<string, unknown>,
       }))
@@ -132,21 +152,16 @@ export async function GET(request: NextRequest) {
         if (upsertErr) throw new Error(upsertErr.message)
       }
 
-      // Fetch blocked times and upsert into provider_blocks (primary) + provider_appointments (fallback)
+      // ── Blocks ─────────────────────────────────────────────────────────────
       const blocks = await provider.listBlocks({
         calendarID: conn.provider_calendar_id,
-        minDate: toDateStr(windowStart),
-        maxDate: toDateStr(windowEnd),
+        minDate: toDateStr(blockWinStart),
+        maxDate: toDateStr(blockWinEnd),
       })
 
-      // Helper: clean note text for display
-      function cleanNote(raw: string | null): string | null {
-        if (!raw) return null
-        const clean = raw.replace(/\n/g, ' ').trim()
-        return clean || null
-      }
+      console.log(`Blocks fetched: ${blocks.length} for calendar ${conn.provider_calendar_id}`)
 
-      // Write to provider_blocks (dedicated table — primary source for TV status)
+      // Write to provider_blocks (primary source for TV BLOCKED status)
       const pbRows = blocks.map((b) => ({
         provider: 'acuity',
         provider_block_id: String(b.id),
@@ -156,6 +171,8 @@ export async function GET(request: NextRequest) {
         start_at: new Date(b.start).toISOString(),
         end_at: new Date(b.end).toISOString(),
         note: cleanNote(b.notes ?? null),
+        note_short: blockNoteShort(b.notes ?? null),
+        payload_json: b as unknown as Record<string, unknown>,
         last_seen_at: reconcileStartedAt.toISOString(),
       }))
 
@@ -167,7 +184,9 @@ export async function GET(request: NextRequest) {
         if (pbErr) throw new Error(`provider_blocks upsert: ${pbErr.message}`)
       }
 
-      // Also write to provider_appointments.kind='blocked' (kept for backward compatibility)
+      console.log(`Blocks saved: ${pbRows.length} for calendar ${conn.provider_calendar_id}`)
+
+      // Also write to provider_appointments.kind='blocked' (backward compat)
       const blockRows = blocks.map((b) => ({
         shop_id: shopId,
         barber_id: conn.barber_id,
@@ -201,30 +220,19 @@ export async function GET(request: NextRequest) {
         } as never)
         .eq('id', conn.id)
 
-      results.push({ calendarId: conn.provider_calendar_id, upserted: apptRows.length + blockRows.length })
+      results.push({ calendarId: conn.provider_calendar_id, appts: apptRows.length, blocks: pbRows.length })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       await admin
         .from('calendar_connections')
         .update({ sync_health: `ERROR: ${message.slice(0, 200)}` } as never)
         .eq('id', conn.id)
-      results.push({ calendarId: conn.provider_calendar_id, upserted: 0, error: message })
+      results.push({ calendarId: conn.provider_calendar_id, appts: 0, blocks: 0, error: message })
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Step 3: Drift repair
-  // Any provider_appointment in the window whose last_seen_at is older than
-  // reconcileStartedAt was not returned by Acuity → mark as DELETED.
-  //
-  // Equivalent SQL:
-  //   UPDATE provider_appointments
-  //   SET status = 'DELETED', updated_at = now()
-  //   WHERE shop_id = $1
-  //     AND provider = 'acuity'
-  //     AND start_at >= $windowStart
-  //     AND start_at < $windowEnd
-  //     AND last_seen_at < $reconcileStartedAt;
+  // Step 3: Drift repair — appointments
   // ---------------------------------------------------------------------------
   const { error: driftErr } = await admin
     .from('provider_appointments')
@@ -243,16 +251,15 @@ export async function GET(request: NextRequest) {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 4: Drift repair for provider_blocks
-  // Blocks not seen in this reconcile window were deleted in Acuity → remove them.
+  // Step 4: Drift repair — provider_blocks
   // ---------------------------------------------------------------------------
   const { error: blockDriftErr } = await admin
     .from('provider_blocks')
     .delete()
     .eq('shop_id', shopId)
     .eq('provider', 'acuity')
-    .gte('start_at', windowStart.toISOString())
-    .lt('start_at', windowEnd.toISOString())
+    .gte('start_at', blockWinStart.toISOString())
+    .lt('start_at', blockWinEnd.toISOString())
     .lt('last_seen_at', reconcileStartedAt.toISOString())
 
   if (blockDriftErr) {
@@ -267,6 +274,8 @@ export async function GET(request: NextRequest) {
     reconcileStartedAt: reconcileStartedAt.toISOString(),
     windowStart: windowStart.toISOString(),
     windowEnd: windowEnd.toISOString(),
+    blockWindowStart: blockWinStart.toISOString(),
+    blockWindowEnd: blockWinEnd.toISOString(),
     connections: (connections as unknown[])?.length ?? 0,
     results,
   })

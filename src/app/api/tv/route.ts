@@ -6,19 +6,6 @@ const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 // Users (barbers) and their appointments were seeded with a different shop_id
 const BARBERS_SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
 
-/**
- * Derive a short note for display.
- * - Remove newlines, trim whitespace.
- * - Cap at 40 chars with ellipsis.
- * - Returns null (not 'Blocked') so the UI can supply its own fallback label.
- */
-function noteShort(note: string | null | undefined): string | null {
-  if (!note) return null
-  const clean = note.replace(/\n/g, ' ').trim()
-  if (!clean) return null
-  return clean.length <= 40 ? clean : clean.slice(0, 40).trimEnd() + '…'
-}
-
 /** TV initial load — returns only display-safe data (no phone, no client_id). */
 export async function GET() {
   const admin = createAdminClient()
@@ -28,8 +15,8 @@ export async function GET() {
     statusResult,
     walkinsResult,
     barbersResult,
-    currentBlocksResult,   // provider_blocks — primary source for UNAVAILABLE
-    currentApptsResult,    // provider_appointments kind='appointment' — BUSY
+    currentBlocksResult,   // provider_blocks — primary source for BLOCKED
+    currentApptsResult,    // provider_appointments kind='appointment' — IN_CHAIR
     nextApptsResult,
   ] = await Promise.all([
     admin.from('barber_status').select('*').eq('shop_id', SHOP_ID),
@@ -51,10 +38,10 @@ export async function GET() {
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
 
-    // Currently-active blocks from dedicated provider_blocks table (primary)
+    // Currently-active blocks from provider_blocks (primary)
     admin
       .from('provider_blocks')
-      .select('barber_id, end_at, note')
+      .select('barber_id, end_at, note_short')
       .eq('shop_id', BARBERS_SHOP_ID)
       .lte('start_at', now)
       .gt('end_at', now),
@@ -80,21 +67,24 @@ export async function GET() {
       .order('start_at', { ascending: true }),
   ])
 
-  // Current block per barber — block takes priority over appointment
-  type BlockRow = { barber_id: string; end_at: string; note: string | null }
+  // ── Active blocks ─────────────────────────────────────────────────────────
+  type BlockRow = { barber_id: string; end_at: string; note_short: string | null }
   const currentBlockMap = new Map<string, BlockRow>()
   for (const row of (currentBlocksResult.data ?? []) as BlockRow[]) {
     if (!currentBlockMap.has(row.barber_id)) currentBlockMap.set(row.barber_id, row)
   }
 
-  // Current appointment per barber (only used when no block active)
+  const activeBlockCount = currentBlockMap.size
+  console.log(`Blocks active now: ${activeBlockCount}`)
+
+  // ── Active appointments ───────────────────────────────────────────────────
   type ApptRow = { barber_id: string; end_at: string }
   const currentApptMap = new Map<string, ApptRow>()
   for (const row of (currentApptsResult.data ?? []) as ApptRow[]) {
     if (!currentApptMap.has(row.barber_id)) currentApptMap.set(row.barber_id, row)
   }
 
-  // Next appointment per barber
+  // ── Next appointment per barber ───────────────────────────────────────────
   type NextRow = { barber_id: string; start_at: string; client_name: string | null }
   const nextApptMap = new Map<string, NextRow>()
   for (const row of (nextApptsResult.data ?? []) as NextRow[]) {
@@ -108,16 +98,22 @@ export async function GET() {
     const appt  = currentApptMap.get(b.id)
     const next  = nextApptMap.get(b.id)
 
-    // Priority: block > appointment > free
+    // Priority: BLOCKED > IN_CHAIR > AVAILABLE
     const busy_reason: 'appointment' | 'blocked' | null =
       block ? 'blocked' :
       appt  ? 'appointment' :
       null
 
-    const free_at             = block?.end_at ?? appt?.end_at ?? null
-    const blocked_note_short  = busy_reason === 'blocked' ? noteShort(block?.note) : null
-    const next_appt_at        = next?.start_at ?? null
-    const next_appt_client_first = next?.client_name
+    const free_at         = block?.end_at ?? appt?.end_at ?? null
+    const blocked_until   = block?.end_at ?? null
+    // Read note_short directly from DB (pre-computed by reconcile)
+    const blocked_note_short =
+      busy_reason === 'blocked'
+        ? (block?.note_short ?? 'Blocked')
+        : null
+
+    const next_appt_at   = next?.start_at ?? null
+    const next_client_name = next?.client_name
       ? (next.client_name.split(' ')[0] || null)
       : null
 
@@ -125,9 +121,10 @@ export async function GET() {
       ...b,
       busy_reason,
       free_at,
+      blocked_until,
       blocked_note_short,
       next_appt_at,
-      next_appt_client_first,
+      next_client_name,
     }
   })
 
