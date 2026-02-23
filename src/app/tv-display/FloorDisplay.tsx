@@ -36,9 +36,11 @@ interface TVBarber {
   last_name: string
   avatar_url: string | null
   display_order: number
-  next_start_at: string | null
-  next_kind: 'APPT' | 'BLOCK' | null
-  next_notes: string | null
+  busy_reason: 'appointment' | 'blocked' | null
+  free_at: string | null
+  blocked_note_short: string | null
+  next_appt_at: string | null
+  next_appt_client_first: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -126,11 +128,15 @@ export function FloorDisplay() {
     return [...barbers].sort((a, b) => {
       const sa = statuses.find((s) => s.barber_id === a.id)
       const sb = statuses.find((s) => s.barber_id === b.id)
-      const ra = statusRank(sa?.status)
-      const rb = statusRank(sb?.status)
+      // Derive effective TV status from barber_status or busy_reason fallback
+      const tvA = sa?.status ?? (a.busy_reason === 'appointment' ? 'BUSY' : a.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
+      const tvB = sb?.status ?? (b.busy_reason === 'appointment' ? 'BUSY' : b.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
+      const ra = statusRank(tvA)
+      const rb = statusRank(tvB)
       if (ra !== rb) return ra - rb
-      const fa = sa?.free_at ? new Date(sa.free_at).getTime() : Infinity
-      const fb = sb?.free_at ? new Date(sb.free_at).getTime() : Infinity
+      // Tiebreak: soonest free first; use barber_status.free_at or appointment free_at
+      const fa = (sa?.free_at ?? a.free_at) ? new Date((sa?.free_at ?? a.free_at)!).getTime() : Infinity
+      const fb = (sb?.free_at ?? b.free_at) ? new Date((sb?.free_at ?? b.free_at)!).getTime() : Infinity
       return fa - fb
     })
   }, [barbers, statuses])
@@ -188,11 +194,23 @@ export function FloorDisplay() {
           <AnimatePresence mode="popLayout" initial={false}>
             {sortedBarbers.map((b) => {
               const bs = statuses.find((s) => s.barber_id === b.id)
+
+              // Derive card status: prefer live barber_status; fall back to appointments
               const cardStatus =
                 bs?.status === 'FREE'        ? 'AVAILABLE' :
                 bs?.status === 'BUSY'        ? 'IN_CHAIR'  :
-                bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  : 'OFF'
-              const glow = glowConfig(bs?.status)
+                bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  :
+                b.busy_reason === 'appointment' ? 'IN_CHAIR'  :
+                b.busy_reason === 'blocked'     ? 'ON_BREAK'  :
+                'AVAILABLE'
+
+              // Derive glow: prefer live barber_status; fall back to busy_reason
+              const tvStatus = bs?.status ?? (
+                b.busy_reason === 'appointment' ? 'BUSY' :
+                b.busy_reason === 'blocked'     ? 'UNAVAILABLE' :
+                'FREE'
+              )
+              const glow = glowConfig(tvStatus)
 
               return (
                 <motion.div
@@ -216,10 +234,11 @@ export function FloorDisplay() {
                       lastName={b.last_name}
                       avatarUrl={b.avatar_url}
                       status={cardStatus}
-                      nextAppointmentAt={b.next_start_at}
-                      nextKind={b.next_kind}
-                      nextNotes={b.next_notes}
-                      freeAt={bs?.free_at ?? null}
+                      nextApptAt={b.next_appt_at}
+                      nextApptClientFirst={b.next_appt_client_first}
+                      busyReason={b.busy_reason}
+                      blockedNoteShort={b.blocked_note_short}
+                      freeAt={b.free_at}
                       className="w-full h-[65vh] min-h-[520px] max-h-[820px] rounded-3xl"
                     />
                   </div>

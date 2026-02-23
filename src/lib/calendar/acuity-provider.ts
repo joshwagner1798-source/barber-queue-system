@@ -10,9 +10,12 @@ import type {
 } from './provider'
 import {
   fetchAppointments,
+  fetchAppointmentById,
+  fetchAppointmentsList,
   fetchBlocks,
   fetchCalendars,
 } from './acuity-client'
+import type { AcuityAppointment } from '@/types/acuity'
 
 /** Format a Date as YYYY-MM-DD for Acuity API date params. */
 function toDateStr(d: Date): string {
@@ -67,5 +70,22 @@ export class AcuityProvider implements CalendarProvider {
       name: c.name,
       email: c.email,
     }))
+  }
+
+  /** Fetch a single appointment by Acuity ID (string form). */
+  async getAppointment(id: string): Promise<AcuityAppointment> {
+    return fetchAppointmentById(id)
+  }
+
+  /**
+   * List appointments in a date window, optionally scoped to one calendar.
+   * Includes canceled so callers can set status=CANCELLED.
+   */
+  async listAppointments(params: {
+    calendarID?: string
+    minDate: string
+    maxDate: string
+  }): Promise<AcuityAppointment[]> {
+    return fetchAppointmentsList(params)
   }
 }

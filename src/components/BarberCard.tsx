@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-// barber_state.state values → display label + colour + glow
+// barber_state.state values → display label + colour
 const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
   IN_CHAIR:  { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
@@ -12,15 +12,39 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string
   OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
 }
 
+// Shared Intl formatters — created once, reused on every tick
+const nyTimeFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+})
+const nyDateFmt = new Intl.DateTimeFormat('en-CA', {
+  // en-CA produces YYYY-MM-DD — handy for string comparison
+  timeZone: 'America/New_York',
+})
+const nyMonthDayFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  month: 'short',
+  day: 'numeric',
+})
+
 function formatTime(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  if (d.toDateString() === now.toDateString()) return time
-  const tomorrow = new Date(now)
-  tomorrow.setDate(now.getDate() + 1)
-  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow ${time}`
-  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`
+
+  const dDate    = nyDateFmt.format(d)
+  const todayStr = nyDateFmt.format(now)
+
+  // Tomorrow in NY: add 1 calendar day to today's NY date
+  const [yr, mo, dy] = todayStr.split('-').map(Number)
+  const tomorrowStr = nyDateFmt.format(new Date(Date.UTC(yr, mo - 1, dy + 1)))
+
+  const time = nyTimeFmt.format(d)
+
+  if (dDate === todayStr)    return time
+  if (dDate === tomorrowStr) return `Tomorrow ${time}`
+  return `${nyMonthDayFmt.format(d)} ${time}`
 }
 
 function formatCountdown(targetIso: string): string {
@@ -41,13 +65,15 @@ interface Props {
   avatarUrl: string | null
   /** barber_state.state — AVAILABLE | IN_CHAIR | ON_BREAK | CLEANUP | OFF | OTHER */
   status: string
-  /** ISO timestamp of next scheduled item (appointment or block) */
-  nextAppointmentAt: string | null
-  /** Whether the next item is a block or a regular appointment */
-  nextKind?: 'APPT' | 'BLOCK' | null
-  /** Notes for the blocked time, if applicable */
-  nextNotes?: string | null
-  /** ISO timestamp when current appointment ends — drives live countdown */
+  /** ISO timestamp of next scheduled appointment (kind='appointment' only) */
+  nextApptAt: string | null
+  /** Client first name for the next appointment */
+  nextApptClientFirst?: string | null
+  /** Whether something is currently running ('appointment' | 'blocked' | null) */
+  busyReason?: 'appointment' | 'blocked' | null
+  /** Short note label when currently blocked */
+  blockedNoteShort?: string | null
+  /** ISO timestamp when current appointment/block ends — drives live countdown */
   freeAt?: string | null
   /** Extra classes applied to the root card div */
   className?: string
@@ -60,9 +86,10 @@ export function BarberCard({
   lastName,
   avatarUrl,
   status,
-  nextAppointmentAt,
-  nextKind = null,
-  nextNotes = null,
+  nextApptAt,
+  nextApptClientFirst = null,
+  busyReason = null,
+  blockedNoteShort = null,
   freeAt = null,
   className,
   imageClassName,
@@ -81,15 +108,22 @@ export function BarberCard({
     return () => clearInterval(id)
   }, [freeAt])
 
-  const isAvailableNow = status === 'AVAILABLE' || countdownText === 'Available Now'
+  const isAvailableNow = countdownText === 'Available Now'
 
-  // Build the "next time" label shown next to the name
-  let nextLabel: string
-  if (nextAppointmentAt) {
-    const time = formatTime(nextAppointmentAt)
-    nextLabel = nextKind === 'BLOCK' ? `BLOCKED ${time}` : time
+  // ── Build the single info line ─────────────────────────────────────────────
+  let infoLine: string
+  let infoColor: string
+
+  if (busyReason === 'blocked') {
+    infoLine  = `Blocked — ${blockedNoteShort ?? 'Blocked'}`
+    infoColor = 'text-orange-400'
+  } else if (nextApptAt) {
+    const when = formatTime(nextApptAt)
+    infoLine  = `Next appt ${when}${nextApptClientFirst ? ` — ${nextApptClientFirst}` : ''}`
+    infoColor = 'text-amber-300'
   } else {
-    nextLabel = 'No Appts'
+    infoLine  = 'No appts'
+    infoColor = 'text-zinc-400'
   }
 
   return (
@@ -116,30 +150,23 @@ export function BarberCard({
 
       {/* Info overlay */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
-        {/* Name — big and bold */}
-        <p className="text-white font-black text-2xl leading-none tracking-wide drop-shadow-lg">
-          {shortName}
+        {/* Single info line: "Name | Next appt 2:30 — Tom" */}
+        <p className="text-white font-black text-2xl leading-none tracking-wide drop-shadow-lg whitespace-nowrap overflow-hidden text-ellipsis">
+          <span className="text-white">{shortName}</span>
+          <span className="text-white/40"> | </span>
+          <span className={infoColor}>{infoLine}</span>
         </p>
 
-        {/* Next time — own line */}
-        <p className={`text-base font-bold mt-1 leading-tight ${nextKind === 'BLOCK' ? 'text-orange-400' : 'text-amber-300'}`}>
-          {nextLabel}
-        </p>
-
-        {/* Block notes if present */}
-        {nextKind === 'BLOCK' && nextNotes && (
-          <p className="text-orange-300 text-xs mt-0.5 leading-tight opacity-90">{nextNotes}</p>
-        )}
-
-        {/* Countdown when busy */}
-        {countdownText && !isAvailableNow && (
-          <p className="text-amber-300 font-bold text-sm tabular-nums mt-1 leading-tight">
-            {countdownText}
-          </p>
-        )}
-        {isAvailableNow && (
-          <p className="text-emerald-400 font-bold text-sm mt-1 leading-tight">Available Now</p>
-        )}
+        {/* Countdown — own line, never shifts layout above */}
+        <div className="h-5 mt-1">
+          {countdownText && !isAvailableNow ? (
+            <p className="text-amber-300 font-bold text-sm tabular-nums leading-tight">
+              {countdownText}
+            </p>
+          ) : isAvailableNow ? (
+            <p className="text-emerald-400 font-bold text-sm leading-tight">Available Now</p>
+          ) : null}
+        </div>
       </div>
 
       {/* Status badge — top-right */}
