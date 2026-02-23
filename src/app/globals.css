@@ -25,3 +25,9 @@ body {
     text-wrap: balance;
   }
 }
+
+/* TV fullscreen mode */
+body.fullscreen-mode {
+  overflow: hidden;
+  user-select: none;
+}

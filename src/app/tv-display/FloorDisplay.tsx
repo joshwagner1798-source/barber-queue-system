@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { WaitingList } from '@/app/tv/WaitingList'
 import { BarberCard } from '@/components/BarberCard'
 import { NewYorkClock } from '@/components/tv/NewYorkClock'
+import { FullscreenButton } from './FullscreenButton'
 
 // ---------------------------------------------------------------------------
 // Types — same shape as /api/tv response (display-safe)
@@ -180,6 +181,7 @@ export function FloorDisplay() {
           <div className="absolute left-1/2 -translate-x-1/2 top-0">
             <NewYorkClock />
           </div>
+          <FullscreenButton />
         </header>
 
         {/* Barber card grid — wraps gracefully if >6 barbers */}
