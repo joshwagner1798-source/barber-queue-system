@@ -62,10 +62,12 @@ interface Props {
   busyReason?: 'appointment' | 'blocked' | null
   /** Pre-computed note for the current block (always 'Blocked' if no note) */
   blockedNoteShort?: string | null
-  /** ISO end of current block — shown as "Until 1:00 PM" */
+  /** ISO end of current block — kept for prop compat, no longer rendered */
   blockedUntil?: string | null
   /** ISO end of current appointment/block — drives countdown for IN_CHAIR */
   freeAt?: string | null
+  /** Label for OFF state, e.g. "Off Sunday" or "Off until 1:00 PM" */
+  offLabel?: string | null
   className?: string
   imageClassName?: string
 }
@@ -79,8 +81,9 @@ export function BarberCard({
   nextClientName = null,
   busyReason = null,
   blockedNoteShort = null,
-  blockedUntil = null,
+  blockedUntil: _blockedUntil = null,
   freeAt = null,
+  offLabel = null,
   className,
   imageClassName,
 }: Props) {
@@ -100,11 +103,16 @@ export function BarberCard({
 
   const isAvailableNow = countdownText === 'Available Now'
   const isBlocked = busyReason === 'blocked'
-
-  // "Until 1:00 PM" — absolute end time when blocked
-  const blockedUntilTime = blockedUntil ? formatTime(blockedUntil) : null
+  const isOff     = status === 'OFF'
 
   const apptTime = nextApptAt ? formatTime(nextApptAt) : null
+
+  // Right side of the main footer line
+  const rightText = isOff
+    ? (offLabel ?? 'Off Today')
+    : apptTime
+      ? `Next: ${apptTime}${nextClientName ? ` — ${nextClientName}` : ''}`
+      : 'Next: —'
 
   return (
     <div
@@ -145,41 +153,23 @@ export function BarberCard({
       {/* Info overlay */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10 flex flex-col gap-0.5">
 
-        {/* Row 1: Barber name */}
-        <p className="text-white font-black text-xl leading-tight drop-shadow-lg">
-          {shortName}
+        {/* Main line: "Name | Next: 2:30 PM — Tom"  or  "Name | Off Sunday" */}
+        <p className="text-white font-black text-xl leading-tight drop-shadow-lg whitespace-nowrap overflow-hidden text-ellipsis">
+          {shortName}{' '}
+          <span className="font-normal text-white/40">|</span>{' '}
+          <span className={`font-semibold ${isOff ? 'text-zinc-400' : 'text-amber-300'}`}>
+            {rightText}
+          </span>
         </p>
 
-        {/* Row 2: Blocked note — only when blocked */}
-        {isBlocked && (
+        {/* Blocked note — only when actively blocked (not OFF) */}
+        {isBlocked && !isOff && blockedNoteShort && (
           <p className="text-red-400 text-sm font-bold break-words leading-tight drop-shadow-lg">
-            {blockedNoteShort ?? 'Blocked'}
+            {blockedNoteShort}
           </p>
         )}
 
-        {/* Row 3: "Until X:XX PM" — only when blocked */}
-        {isBlocked && blockedUntilTime && (
-          <p className="text-red-300 text-xs font-semibold leading-tight drop-shadow-lg">
-            Until {blockedUntilTime}
-          </p>
-        )}
-
-        {/* Row 4: Next appointment — always visible */}
-        <div className="leading-tight drop-shadow-lg">
-          {apptTime ? (
-            <p className="text-amber-300 text-sm font-semibold">
-              <span className="text-white/60">Next Appt: </span>
-              <span className="whitespace-nowrap">{apptTime}</span>
-              {nextClientName && (
-                <span> with {nextClientName}</span>
-              )}
-            </p>
-          ) : (
-            <p className="text-zinc-400 text-sm font-semibold">No Appts Today</p>
-          )}
-        </div>
-
-        {/* Row 5: Live countdown — shown for both BLOCKED and IN_CHAIR */}
+        {/* Live countdown — shown for BLOCKED and IN_CHAIR */}
         <div className="h-4">
           {countdownText && !isAvailableNow ? (
             <p className={`font-bold text-xs tabular-nums leading-tight ${isBlocked ? 'text-red-300' : 'text-amber-300'}`}>
