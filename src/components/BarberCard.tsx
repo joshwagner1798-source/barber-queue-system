@@ -156,22 +156,19 @@ export function BarberCard({
         </div>
       )}
 
-      {/* Bottom gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
+      {/* Bottom gradient — tall enough to cover wrapped text */}
+      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
 
       {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
-        {/* Info line: wraps to max 2 lines, no truncation */}
-        <p
-          className="text-white font-black text-[1.35rem] leading-tight tracking-wide drop-shadow-lg break-words"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-        >
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-6 z-10">
+        {/* Info line — wraps freely, no truncation */}
+        <p className="text-white font-black text-[1.35rem] whitespace-normal break-words leading-tight tracking-wide drop-shadow-lg">
           <span className="text-white">{shortName}</span>
           <span className="text-white/40"> | </span>
           <span className={infoColor}>{infoLine}</span>
         </p>
 
-        {/* Countdown — fixed height so layout never shifts */}
+        {/* Countdown */}
         <div className="h-6 mt-1">
           {countdownText && !isAvailableNow ? (
             <p className="text-amber-300 font-bold text-sm tabular-nums leading-tight">
