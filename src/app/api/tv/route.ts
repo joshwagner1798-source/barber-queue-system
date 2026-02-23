@@ -6,11 +6,17 @@ const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 // Users (barbers) and their appointments were seeded with a different shop_id
 const BARBERS_SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
 
-/** First line of notes, capped at 22 chars with ellipsis. */
-function shortNote(notes: string | null): string | null {
-  if (!notes) return null
-  const first = notes.split('\n')[0].trim()
-  return first.length <= 22 ? first : first.slice(0, 22).trimEnd() + '…'
+/**
+ * Derive a short note for display.
+ * - Remove newlines, trim whitespace.
+ * - Cap at 40 chars with ellipsis.
+ * - Returns null (not 'Blocked') so the UI can supply its own fallback label.
+ */
+function noteShort(note: string | null | undefined): string | null {
+  if (!note) return null
+  const clean = note.replace(/\n/g, ' ').trim()
+  if (!clean) return null
+  return clean.length <= 40 ? clean : clean.slice(0, 40).trimEnd() + '…'
 }
 
 /** TV initial load — returns only display-safe data (no phone, no client_id). */
@@ -22,7 +28,8 @@ export async function GET() {
     statusResult,
     walkinsResult,
     barbersResult,
-    currentApptsResult,
+    currentBlocksResult,   // provider_blocks — primary source for UNAVAILABLE
+    currentApptsResult,    // provider_appointments kind='appointment' — BUSY
     nextApptsResult,
   ] = await Promise.all([
     admin.from('barber_status').select('*').eq('shop_id', SHOP_ID),
@@ -44,16 +51,25 @@ export async function GET() {
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
 
-    // Currently-ongoing appointment or block (window overlaps now)
+    // Currently-active blocks from dedicated provider_blocks table (primary)
+    admin
+      .from('provider_blocks')
+      .select('barber_id, end_at, note')
+      .eq('shop_id', BARBERS_SHOP_ID)
+      .lte('start_at', now)
+      .gt('end_at', now),
+
+    // Currently-ongoing appointments from provider_appointments (kind='appointment' only)
     admin
       .from('provider_appointments')
-      .select('barber_id, kind, end_at, notes')
+      .select('barber_id, end_at')
       .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('kind', 'appointment')
       .eq('status', 'ACTIVE')
       .lte('start_at', now)
       .gt('end_at', now),
 
-    // Next upcoming appointment (kind='appointment' only, not blocks)
+    // Next upcoming appointment per barber
     admin
       .from('provider_appointments')
       .select('barber_id, start_at, client_name')
@@ -64,14 +80,21 @@ export async function GET() {
       .order('start_at', { ascending: true }),
   ])
 
-  // Current appointment/block per barber (first match wins; lte+gt guarantees overlap)
-  type CurrentRow = { barber_id: string; kind: string; end_at: string; notes: string | null }
-  const currentMap = new Map<string, CurrentRow>()
-  for (const row of (currentApptsResult.data ?? []) as CurrentRow[]) {
-    if (!currentMap.has(row.barber_id)) currentMap.set(row.barber_id, row)
+  // Current block per barber — block takes priority over appointment
+  type BlockRow = { barber_id: string; end_at: string; note: string | null }
+  const currentBlockMap = new Map<string, BlockRow>()
+  for (const row of (currentBlocksResult.data ?? []) as BlockRow[]) {
+    if (!currentBlockMap.has(row.barber_id)) currentBlockMap.set(row.barber_id, row)
   }
 
-  // Next appointment per barber (first row wins — already ordered by start_at asc)
+  // Current appointment per barber (only used when no block active)
+  type ApptRow = { barber_id: string; end_at: string }
+  const currentApptMap = new Map<string, ApptRow>()
+  for (const row of (currentApptsResult.data ?? []) as ApptRow[]) {
+    if (!currentApptMap.has(row.barber_id)) currentApptMap.set(row.barber_id, row)
+  }
+
+  // Next appointment per barber
   type NextRow = { barber_id: string; start_at: string; client_name: string | null }
   const nextApptMap = new Map<string, NextRow>()
   for (const row of (nextApptsResult.data ?? []) as NextRow[]) {
@@ -80,19 +103,20 @@ export async function GET() {
 
   type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null; display_order: number }
 
-  // Enrich each barber with appointment-derived fields
   const barbers = ((barbersResult.data ?? []) as unknown as BarberRow[]).map((b) => {
-    const current = currentMap.get(b.id)
-    const next = nextApptMap.get(b.id)
+    const block = currentBlockMap.get(b.id)
+    const appt  = currentApptMap.get(b.id)
+    const next  = nextApptMap.get(b.id)
 
+    // Priority: block > appointment > free
     const busy_reason: 'appointment' | 'blocked' | null =
-      current?.kind === 'appointment' ? 'appointment' :
-      current?.kind === 'blocked'     ? 'blocked'     : null
+      block ? 'blocked' :
+      appt  ? 'appointment' :
+      null
 
-    const free_at = current?.end_at ?? null
-    const blocked_note_short = busy_reason === 'blocked' ? shortNote(current?.notes ?? null) : null
-
-    const next_appt_at = next?.start_at ?? null
+    const free_at             = block?.end_at ?? appt?.end_at ?? null
+    const blocked_note_short  = busy_reason === 'blocked' ? noteShort(block?.note) : null
+    const next_appt_at        = next?.start_at ?? null
     const next_appt_client_first = next?.client_name
       ? (next.client_name.split(' ')[0] || null)
       : null

@@ -132,13 +132,42 @@ export async function GET(request: NextRequest) {
         if (upsertErr) throw new Error(upsertErr.message)
       }
 
-      // Fetch and upsert blocked times for this calendar
-      const blocks = await fetchBlocks(
-        Number(conn.provider_calendar_id),
-        toDateStr(windowStart),
-        toDateStr(windowEnd),
-      )
+      // Fetch blocked times and upsert into provider_blocks (primary) + provider_appointments (fallback)
+      const blocks = await provider.listBlocks({
+        calendarID: conn.provider_calendar_id,
+        minDate: toDateStr(windowStart),
+        maxDate: toDateStr(windowEnd),
+      })
 
+      // Helper: clean note text for display
+      function cleanNote(raw: string | null): string | null {
+        if (!raw) return null
+        const clean = raw.replace(/\n/g, ' ').trim()
+        return clean || null
+      }
+
+      // Write to provider_blocks (dedicated table — primary source for TV status)
+      const pbRows = blocks.map((b) => ({
+        provider: 'acuity',
+        provider_block_id: String(b.id),
+        calendar_id: conn.provider_calendar_id,
+        barber_id: conn.barber_id,
+        shop_id: shopId,
+        start_at: new Date(b.start).toISOString(),
+        end_at: new Date(b.end).toISOString(),
+        note: cleanNote(b.notes ?? null),
+        last_seen_at: reconcileStartedAt.toISOString(),
+      }))
+
+      if (pbRows.length > 0) {
+        const { error: pbErr } = await admin
+          .from('provider_blocks')
+          .upsert(pbRows as never, { onConflict: 'provider,provider_block_id' })
+
+        if (pbErr) throw new Error(`provider_blocks upsert: ${pbErr.message}`)
+      }
+
+      // Also write to provider_appointments.kind='blocked' (kept for backward compatibility)
       const blockRows = blocks.map((b) => ({
         shop_id: shopId,
         barber_id: conn.barber_id,
@@ -150,7 +179,7 @@ export async function GET(request: NextRequest) {
         end_at: new Date(b.end).toISOString(),
         status: 'ACTIVE',
         client_name: null,
-        notes: b.notes ?? null,
+        notes: cleanNote(b.notes ?? null),
         last_seen_at: reconcileStartedAt.toISOString(),
         payload_json: b as unknown as Record<string, unknown>,
       }))
@@ -160,7 +189,7 @@ export async function GET(request: NextRequest) {
           .from('provider_appointments')
           .upsert(blockRows as never, { onConflict: 'provider,provider_appointment_id' })
 
-        if (blockUpsertErr) throw new Error(blockUpsertErr.message)
+        if (blockUpsertErr) throw new Error(`provider_appointments blocks upsert: ${blockUpsertErr.message}`)
       }
 
       // Update connection health
@@ -208,7 +237,27 @@ export async function GET(request: NextRequest) {
 
   if (driftErr) {
     return NextResponse.json(
-      { error: `Drift repair failed: ${driftErr.message}`, results },
+      { error: `Drift repair (appointments) failed: ${driftErr.message}`, results },
+      { status: 500 },
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 4: Drift repair for provider_blocks
+  // Blocks not seen in this reconcile window were deleted in Acuity → remove them.
+  // ---------------------------------------------------------------------------
+  const { error: blockDriftErr } = await admin
+    .from('provider_blocks')
+    .delete()
+    .eq('shop_id', shopId)
+    .eq('provider', 'acuity')
+    .gte('start_at', windowStart.toISOString())
+    .lt('start_at', windowEnd.toISOString())
+    .lt('last_seen_at', reconcileStartedAt.toISOString())
+
+  if (blockDriftErr) {
+    return NextResponse.json(
+      { error: `Drift repair (blocks) failed: ${blockDriftErr.message}`, results },
       { status: 500 },
     )
   }

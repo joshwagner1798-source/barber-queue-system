@@ -7,6 +7,7 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
   IN_CHAIR:  { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
   ON_BREAK:  { label: 'ON BREAK', badge: 'bg-blue-500   text-white',    glow: 'shadow-blue-500/30'    },
+  BLOCKED:   { label: 'BLOCKED',  badge: 'bg-red-600    text-white',    glow: 'shadow-red-600/40'     },
   CLEANUP:   { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
   OFF:       { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
   OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
@@ -127,6 +128,9 @@ export function BarberCard({
       {status === 'ON_BREAK' && (
         <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" style={{ zIndex: 0 }} />
       )}
+      {status === 'BLOCKED' && (
+        <div className="absolute inset-0 bg-red-600/30 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
+      )}
 
       {/* Photo — full-bleed */}
       {avatarUrl ? (
@@ -157,8 +161,8 @@ export function BarberCard({
         {/* Row 2: Appointment info */}
         <div className="mt-1 leading-snug drop-shadow-lg text-base font-semibold">
           {busyReason === 'blocked' ? (
-            <p className="text-orange-400 break-words">
-              {blockedNoteShort ? `Blocked — ${blockedNoteShort}` : 'Blocked'}
+            <p className="text-red-400 break-words">
+              {blockedNoteShort ? `Blocked: ${blockedNoteShort}` : 'Blocked'}
             </p>
           ) : apptTime ? (
             <p className="text-amber-300">

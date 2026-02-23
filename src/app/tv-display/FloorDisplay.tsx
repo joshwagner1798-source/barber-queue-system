@@ -120,6 +120,7 @@ export function FloorDisplay() {
       const sa = statuses.find((s) => s.barber_id === a.id)
       const sb = statuses.find((s) => s.barber_id === b.id)
       // Derive effective TV status from barber_status or busy_reason fallback
+      // blocked → UNAVAILABLE rank so blocked barbers sort after BUSY
       const tvA = sa?.status ?? (a.busy_reason === 'appointment' ? 'BUSY' : a.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
       const tvB = sb?.status ?? (b.busy_reason === 'appointment' ? 'BUSY' : b.busy_reason === 'blocked' ? 'UNAVAILABLE' : 'FREE')
       const ra = statusRank(tvA)
@@ -191,8 +192,8 @@ export function FloorDisplay() {
                 bs?.status === 'FREE'        ? 'AVAILABLE' :
                 bs?.status === 'BUSY'        ? 'IN_CHAIR'  :
                 bs?.status === 'UNAVAILABLE' ? 'ON_BREAK'  :
-                b.busy_reason === 'appointment' ? 'IN_CHAIR'  :
-                b.busy_reason === 'blocked'     ? 'ON_BREAK'  :
+                b.busy_reason === 'appointment' ? 'IN_CHAIR' :
+                b.busy_reason === 'blocked'     ? 'BLOCKED'  :
                 'AVAILABLE'
 
               return (
