@@ -15,8 +15,8 @@ export async function GET() {
     statusResult,
     walkinsResult,
     barbersResult,
-    currentBlocksResult,   // provider_blocks — primary source for BLOCKED
-    currentApptsResult,    // provider_appointments kind='appointment' — IN_CHAIR
+    currentBlocksResult,
+    currentApptsResult,
     nextApptsResult,
   ] = await Promise.all([
     admin.from('barber_status').select('*').eq('shop_id', SHOP_ID),
@@ -38,15 +38,16 @@ export async function GET() {
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
 
-    // Currently-active blocks from provider_blocks (primary)
+    // Currently-active blocks — BLOCKED overrides everything
+    // Condition: start_at <= now AND end_at > now
     admin
       .from('provider_blocks')
-      .select('barber_id, end_at, note_short')
+      .select('barber_id, start_at, end_at, note_short')
       .eq('shop_id', BARBERS_SHOP_ID)
       .lte('start_at', now)
       .gt('end_at', now),
 
-    // Currently-ongoing appointments from provider_appointments (kind='appointment' only)
+    // Currently-ongoing appointments (kind='appointment' only)
     admin
       .from('provider_appointments')
       .select('barber_id, end_at')
@@ -68,14 +69,17 @@ export async function GET() {
   ])
 
   // ── Active blocks ─────────────────────────────────────────────────────────
-  type BlockRow = { barber_id: string; end_at: string; note_short: string | null }
+  type BlockRow = { barber_id: string; start_at: string; end_at: string; note_short: string | null }
   const currentBlockMap = new Map<string, BlockRow>()
   for (const row of (currentBlocksResult.data ?? []) as BlockRow[]) {
     if (!currentBlockMap.has(row.barber_id)) currentBlockMap.set(row.barber_id, row)
   }
-
-  const activeBlockCount = currentBlockMap.size
-  console.log(`Blocks active now: ${activeBlockCount}`)
+  console.log(`Blocks active now: ${currentBlockMap.size}`)
+  if (currentBlockMap.size > 0) {
+    for (const [barberId, block] of currentBlockMap) {
+      console.log(`  BLOCKED barber=${barberId} start=${block.start_at} end=${block.end_at} note="${block.note_short}"`)
+    }
+  }
 
   // ── Active appointments ───────────────────────────────────────────────────
   type ApptRow = { barber_id: string; end_at: string }
@@ -98,31 +102,34 @@ export async function GET() {
     const appt  = currentApptMap.get(b.id)
     const next  = nextApptMap.get(b.id)
 
-    // Priority: BLOCKED > IN_CHAIR > AVAILABLE
+    // STATUS PRIORITY: BLOCKED > BUSY (appointment) > FREE
     const busy_reason: 'appointment' | 'blocked' | null =
       block ? 'blocked' :
       appt  ? 'appointment' :
       null
 
-    const free_at         = block?.end_at ?? appt?.end_at ?? null
-    const blocked_until   = block?.end_at ?? null
-    // Read note_short directly from DB (pre-computed by reconcile)
-    const blocked_note_short =
-      busy_reason === 'blocked'
-        ? (block?.note_short ?? 'Blocked')
-        : null
+    // status field mirrors barber_status table values for easy mapping in UI
+    const status: 'BUSY' | 'FREE' | 'UNAVAILABLE' =
+      block ? 'UNAVAILABLE' :   // BLOCKED → UNAVAILABLE (with busy_reason='blocked')
+      appt  ? 'BUSY'         :
+      'FREE'
 
-    const next_appt_at   = next?.start_at ?? null
+    const free_at        = block?.end_at ?? appt?.end_at ?? null
+    const blocked_until  = block?.end_at ?? null
+    const blocked_note   = busy_reason === 'blocked' ? (block?.note_short ?? 'Blocked') : null
+
+    const next_appt_at     = next?.start_at ?? null
     const next_client_name = next?.client_name
       ? (next.client_name.split(' ')[0] || null)
       : null
 
     return {
       ...b,
+      status,
       busy_reason,
       free_at,
       blocked_until,
-      blocked_note_short,
+      blocked_note,
       next_appt_at,
       next_client_name,
     }

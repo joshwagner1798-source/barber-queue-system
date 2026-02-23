@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 
-// barber_state.state values → display label + colour
 const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
   IN_CHAIR:  { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
@@ -13,7 +12,6 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string
   OTHER:     { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
 }
 
-// Shared Intl formatters — created once, reused on every tick
 const nyTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York',
   hour: 'numeric',
@@ -21,7 +19,6 @@ const nyTimeFmt = new Intl.DateTimeFormat('en-US', {
   hour12: true,
 })
 const nyDateFmt = new Intl.DateTimeFormat('en-CA', {
-  // en-CA produces YYYY-MM-DD — handy for string comparison
   timeZone: 'America/New_York',
 })
 const nyMonthDayFmt = new Intl.DateTimeFormat('en-US', {
@@ -33,16 +30,11 @@ const nyMonthDayFmt = new Intl.DateTimeFormat('en-US', {
 function formatTime(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
-
   const dDate    = nyDateFmt.format(d)
   const todayStr = nyDateFmt.format(now)
-
-  // Tomorrow in NY: add 1 calendar day to today's NY date
   const [yr, mo, dy] = todayStr.split('-').map(Number)
   const tomorrowStr = nyDateFmt.format(new Date(Date.UTC(yr, mo - 1, dy + 1)))
-
   const time = nyTimeFmt.format(d)
-
   if (dDate === todayStr)    return time
   if (dDate === tomorrowStr) return `Tomorrow ${time}`
   return `${nyMonthDayFmt.format(d)} ${time}`
@@ -64,23 +56,17 @@ interface Props {
   firstName: string
   lastName: string
   avatarUrl: string | null
-  /** barber_state.state — AVAILABLE | IN_CHAIR | ON_BREAK | BLOCKED | CLEANUP | OFF | OTHER */
   status: string
-  /** ISO timestamp of next scheduled appointment */
   nextApptAt: string | null
-  /** Client first name for the next appointment */
   nextClientName?: string | null
-  /** Whether something is currently running ('appointment' | 'blocked' | null) */
   busyReason?: 'appointment' | 'blocked' | null
-  /** Short note label when currently blocked (pre-computed, always 'Blocked' if no note) */
+  /** Pre-computed note for the current block (always 'Blocked' if no note) */
   blockedNoteShort?: string | null
-  /** ISO timestamp when current block ends — shown alongside next appt */
+  /** ISO end of current block — shown as "Until 1:00 PM" */
   blockedUntil?: string | null
-  /** ISO timestamp when current appointment/block ends — drives live countdown */
+  /** ISO end of current appointment/block — drives countdown for IN_CHAIR */
   freeAt?: string | null
-  /** Extra classes applied to the root card div */
   className?: string
-  /** Extra classes applied to the <img> element */
   imageClassName?: string
 }
 
@@ -93,6 +79,7 @@ export function BarberCard({
   nextClientName = null,
   busyReason = null,
   blockedNoteShort = null,
+  blockedUntil = null,
   freeAt = null,
   className,
   imageClassName,
@@ -100,7 +87,7 @@ export function BarberCard({
   const shortName = `${firstName} ${lastName.charAt(0)}.`
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.OFF
 
-  // Live countdown — ticks every second when freeAt is set
+  // Live countdown — used for both IN_CHAIR and BLOCKED
   const [countdownText, setCountdownText] = useState<string | null>(
     freeAt ? formatCountdown(freeAt) : null,
   )
@@ -112,6 +99,10 @@ export function BarberCard({
   }, [freeAt])
 
   const isAvailableNow = countdownText === 'Available Now'
+  const isBlocked = busyReason === 'blocked'
+
+  // "Until 1:00 PM" — absolute end time when blocked
+  const blockedUntilTime = blockedUntil ? formatTime(blockedUntil) : null
 
   const apptTime = nextApptAt ? formatTime(nextApptAt) : null
 
@@ -119,7 +110,7 @@ export function BarberCard({
     <div
       className={`relative w-44 h-72 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10${className ? ` ${className}` : ''}`}
     >
-      {/* Per-card status glow — clipped by overflow-hidden */}
+      {/* Per-card status glow */}
       {status === 'AVAILABLE' && (
         <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
       )}
@@ -133,7 +124,7 @@ export function BarberCard({
         <div className="absolute inset-0 bg-red-600/30 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
       )}
 
-      {/* Photo — full-bleed */}
+      {/* Photo */}
       {avatarUrl ? (
         <img
           src={avatarUrl}
@@ -152,43 +143,50 @@ export function BarberCard({
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
 
       {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10 flex flex-col gap-0.5">
 
         {/* Row 1: Barber name */}
         <p className="text-white font-black text-xl leading-tight drop-shadow-lg">
           {shortName}
         </p>
 
-        {/* Row 2: Next appointment — always visible */}
-        <div className="mt-1 leading-snug drop-shadow-lg text-base font-semibold">
-          {apptTime ? (
-            <p className="text-amber-300">
-              <span className="whitespace-nowrap text-white/60">Next </span>
-              <span className="whitespace-nowrap">{apptTime}</span>
-              {nextClientName && (
-                <><span className="whitespace-nowrap"> —</span> {nextClientName}</>
-              )}
-            </p>
-          ) : (
-            <p className="text-zinc-400">No appts</p>
-          )}
-        </div>
-
-        {/* Row 3: Blocked note — only when blocked */}
-        {busyReason === 'blocked' && (
-          <p className="mt-0.5 text-red-400 text-sm font-semibold break-words drop-shadow-lg leading-snug">
+        {/* Row 2: Blocked note — only when blocked */}
+        {isBlocked && (
+          <p className="text-red-400 text-sm font-bold break-words leading-tight drop-shadow-lg">
             {blockedNoteShort ?? 'Blocked'}
           </p>
         )}
 
-        {/* Row 4: Countdown */}
-        <div className="h-5 mt-1">
+        {/* Row 3: "Until X:XX PM" — only when blocked */}
+        {isBlocked && blockedUntilTime && (
+          <p className="text-red-300 text-xs font-semibold leading-tight drop-shadow-lg">
+            Until {blockedUntilTime}
+          </p>
+        )}
+
+        {/* Row 4: Next appointment — always visible */}
+        <div className="leading-tight drop-shadow-lg">
+          {apptTime ? (
+            <p className="text-amber-300 text-sm font-semibold">
+              <span className="text-white/60">Next Appt: </span>
+              <span className="whitespace-nowrap">{apptTime}</span>
+              {nextClientName && (
+                <span> with {nextClientName}</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-zinc-400 text-sm font-semibold">No Appts Today</p>
+          )}
+        </div>
+
+        {/* Row 5: Live countdown — shown for both BLOCKED and IN_CHAIR */}
+        <div className="h-4">
           {countdownText && !isAvailableNow ? (
-            <p className="text-amber-300 font-bold text-sm tabular-nums leading-tight">
+            <p className={`font-bold text-xs tabular-nums leading-tight ${isBlocked ? 'text-red-300' : 'text-amber-300'}`}>
               {countdownText}
             </p>
           ) : isAvailableNow ? (
-            <p className="text-emerald-400 font-bold text-sm leading-tight">Available Now</p>
+            <p className="text-emerald-400 font-bold text-xs leading-tight">Available Now</p>
           ) : null}
         </div>
       </div>

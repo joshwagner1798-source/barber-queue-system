@@ -8,6 +8,7 @@
 // Blocks use a tighter window: [-1 day, +14 days] per spec.
 //
 // Auth: requires  Authorization: Bearer <RECONCILE_SECRET>
+//              or Authorization: Bearer <CRON_SECRET>  (Vercel cron)
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -90,13 +91,13 @@ export async function GET(request: NextRequest) {
   // ---------------------------------------------------------------------------
   // Windows
   // Appointments: -7 days → +30 days
-  // Blocks:       -1 day  → +14 days  (per spec)
+  // Blocks:       -1 day  → +14 days
   // ---------------------------------------------------------------------------
   const reconcileStartedAt = new Date()
-  const windowStart    = new Date(reconcileStartedAt.getTime() -  7 * 24 * 60 * 60 * 1000)
-  const windowEnd      = new Date(reconcileStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
-  const blockWinStart  = new Date(reconcileStartedAt.getTime() -  1 * 24 * 60 * 60 * 1000)
-  const blockWinEnd    = new Date(reconcileStartedAt.getTime() + 14 * 24 * 60 * 60 * 1000)
+  const windowStart   = new Date(reconcileStartedAt.getTime() -  7 * 24 * 60 * 60 * 1000)
+  const windowEnd     = new Date(reconcileStartedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const blockWinStart = new Date(reconcileStartedAt.getTime() -  1 * 24 * 60 * 60 * 1000)
+  const blockWinEnd   = new Date(reconcileStartedAt.getTime() + 14 * 24 * 60 * 60 * 1000)
 
   // ---------------------------------------------------------------------------
   // Step 1: Fetch active calendar connections for this shop
@@ -112,6 +113,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: connErr.message }, { status: 500 })
   }
 
+  // Pre-fetch barber names for debug logging
+  type BarberNameRow = { id: string; first_name: string; last_name: string }
+  const { data: barberNameRows } = await admin
+    .from('users')
+    .select('id, first_name, last_name')
+    .eq('shop_id', shopId)
+    .eq('role', 'barber')
+  const barberNameMap = new Map<string, string>(
+    ((barberNameRows ?? []) as unknown as BarberNameRow[]).map((b) => [
+      b.id,
+      `${b.first_name} ${b.last_name}`,
+    ]),
+  )
+
   const results: Array<{
     calendarId: string
     appts: number
@@ -123,6 +138,8 @@ export async function GET(request: NextRequest) {
   // Step 2: For each connection, sync appointments then blocks
   // ---------------------------------------------------------------------------
   for (const conn of (connections as unknown as { id: string; barber_id: string; provider_calendar_id: string }[]) ?? []) {
+    const barberName = barberNameMap.get(conn.barber_id) ?? conn.barber_id
+
     try {
       // ── Appointments ───────────────────────────────────────────────────────
       const appointments = await provider.listAppointments({
@@ -156,13 +173,29 @@ export async function GET(request: NextRequest) {
       }
 
       // ── Blocks ─────────────────────────────────────────────────────────────
+      console.log(
+        `[BLOCKS] Calendar ${conn.provider_calendar_id} → barber="${barberName}" (${conn.barber_id})` +
+        ` | window ${toDateStr(blockWinStart)} → ${toDateStr(blockWinEnd)}`,
+      )
+
       const blocks = await provider.listBlocks({
         calendarID: conn.provider_calendar_id,
         minDate: toDateStr(blockWinStart),
         maxDate: toDateStr(blockWinEnd),
       })
 
-      console.log(`Blocks fetched: ${blocks.length} for calendar ${conn.provider_calendar_id}`)
+      console.log(`[BLOCKS] Fetched: ${blocks.length} blocks for "${barberName}" (calendar ${conn.provider_calendar_id})`)
+
+      for (const b of blocks) {
+        const parsedStart = new Date(b.start).toISOString()
+        const parsedEnd   = new Date(b.end).toISOString()
+        console.log(
+          `[BLOCK]  id=${b.id} calendarID=${b.calendarID}` +
+          ` | raw start="${b.start}" → parsed start_at="${parsedStart}"` +
+          ` | raw end="${b.end}"   → parsed end_at="${parsedEnd}"` +
+          ` | notes="${b.notes ?? ''}"`,
+        )
+      }
 
       // Write to provider_blocks (primary source for TV BLOCKED status)
       const pbRows = blocks.map((b) => ({
@@ -187,7 +220,7 @@ export async function GET(request: NextRequest) {
         if (pbErr) throw new Error(`provider_blocks upsert: ${pbErr.message}`)
       }
 
-      console.log(`Blocks saved: ${pbRows.length} for calendar ${conn.provider_calendar_id}`)
+      console.log(`[BLOCKS] Saved: ${pbRows.length} blocks for "${barberName}"`)
 
       // Also write to provider_appointments.kind='blocked' (backward compat)
       const blockRows = blocks.map((b) => ({
@@ -226,6 +259,7 @@ export async function GET(request: NextRequest) {
       results.push({ calendarId: conn.provider_calendar_id, appts: apptRows.length, blocks: pbRows.length })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
+      console.error(`[BLOCKS] ERROR for "${barberName}" (calendar ${conn.provider_calendar_id}): ${message}`)
       await admin
         .from('calendar_connections')
         .update({ sync_health: `ERROR: ${message.slice(0, 200)}` } as never)
