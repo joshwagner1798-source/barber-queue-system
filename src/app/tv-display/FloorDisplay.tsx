@@ -64,15 +64,6 @@ function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): numb
   return Math.max(0, Math.round((Math.min(...freeAts) - Date.now()) / 1000))
 }
 
-// Glow colour + opacity per TV status
-function glowConfig(tvStatus?: string): { bg: string; opacity: string; pulse: boolean } {
-  switch (tvStatus) {
-    case 'FREE':        return { bg: 'bg-emerald-500', opacity: 'opacity-50', pulse: true  }
-    case 'BUSY':        return { bg: 'bg-red-500',     opacity: 'opacity-40', pulse: true  }
-    case 'UNAVAILABLE': return { bg: 'bg-blue-500',    opacity: 'opacity-20', pulse: true  }
-    default:            return { bg: 'bg-zinc-600',    opacity: 'opacity-10', pulse: false }
-  }
-}
 
 // ---------------------------------------------------------------------------
 // FloorDisplay
@@ -204,14 +195,6 @@ export function FloorDisplay() {
                 b.busy_reason === 'blocked'     ? 'ON_BREAK'  :
                 'AVAILABLE'
 
-              // Derive glow: prefer live barber_status; fall back to busy_reason
-              const tvStatus = bs?.status ?? (
-                b.busy_reason === 'appointment' ? 'BUSY' :
-                b.busy_reason === 'blocked'     ? 'UNAVAILABLE' :
-                'FREE'
-              )
-              const glow = glowConfig(tvStatus)
-
               return (
                 <motion.div
                   key={b.id}
@@ -222,13 +205,8 @@ export function FloorDisplay() {
                   transition={{ type: 'spring', stiffness: 200, damping: 25 }}
                   className="relative flex-1 min-w-0"
                 >
-                  {/* Pulsing glow — behind card */}
-                  <div
-                    className={`absolute inset-[-10px] rounded-3xl blur-2xl ${glow.bg} ${glow.opacity}${glow.pulse ? ' animate-pulse' : ''} pointer-events-none`}
-                    style={{ zIndex: 0 }}
-                  />
                   {/* Card */}
-                  <div className="relative" style={{ zIndex: 1 }}>
+                  <div className="relative">
                     <BarberCard
                       firstName={b.first_name}
                       lastName={b.last_name}
