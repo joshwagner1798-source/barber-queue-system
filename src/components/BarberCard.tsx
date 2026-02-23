@@ -112,16 +112,18 @@ export function BarberCard({
       )}
 
       {/* Bottom gradient */}
-      <div className="absolute bottom-0 left-0 right-0 h-36 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-44 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
 
       {/* Info overlay */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10">
-        {/* Primary: Name — next time */}
-        <p className="text-white font-black text-xl leading-tight tracking-wide">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
+        {/* Name — big and bold */}
+        <p className="text-white font-black text-2xl leading-none tracking-wide drop-shadow-lg">
           {shortName}
-          <span className={`${nextKind === 'BLOCK' ? 'text-orange-400' : 'text-amber-300'}`}>
-            {' '}— {nextLabel}
-          </span>
+        </p>
+
+        {/* Next time — own line */}
+        <p className={`text-base font-bold mt-1 leading-tight ${nextKind === 'BLOCK' ? 'text-orange-400' : 'text-amber-300'}`}>
+          {nextLabel}
         </p>
 
         {/* Block notes if present */}

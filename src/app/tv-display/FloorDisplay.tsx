@@ -62,29 +62,13 @@ function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): numb
   return Math.max(0, Math.round((Math.min(...freeAts) - Date.now()) / 1000))
 }
 
-// Glow colour + pulse config per TV status
-function glowConfig(tvStatus?: string): { bg: string; pulse: { opacity: number[]; scale: number[] } } {
+// Glow colour + opacity per TV status
+function glowConfig(tvStatus?: string): { bg: string; opacity: string; pulse: boolean } {
   switch (tvStatus) {
-    case 'FREE':
-      return {
-        bg: 'bg-emerald-500',
-        pulse: { opacity: [0.35, 0.65, 0.35], scale: [0.97, 1.03, 0.97] },
-      }
-    case 'BUSY':
-      return {
-        bg: 'bg-red-500',
-        pulse: { opacity: [0.3, 0.55, 0.3], scale: [0.97, 1.03, 0.97] },
-      }
-    case 'UNAVAILABLE':
-      return {
-        bg: 'bg-blue-500',
-        pulse: { opacity: [0.15, 0.3, 0.15], scale: [0.98, 1.02, 0.98] },
-      }
-    default:
-      return {
-        bg: 'bg-zinc-600',
-        pulse: { opacity: [0.08, 0.15, 0.08], scale: [0.99, 1.01, 0.99] },
-      }
+    case 'FREE':        return { bg: 'bg-emerald-500', opacity: 'opacity-50', pulse: true  }
+    case 'BUSY':        return { bg: 'bg-red-500',     opacity: 'opacity-40', pulse: true  }
+    case 'UNAVAILABLE': return { bg: 'bg-blue-500',    opacity: 'opacity-20', pulse: true  }
+    default:            return { bg: 'bg-zinc-600',    opacity: 'opacity-10', pulse: false }
   }
 }
 
@@ -221,10 +205,8 @@ export function FloorDisplay() {
                   className="relative flex-1 min-w-0"
                 >
                   {/* Pulsing glow — behind card */}
-                  <motion.div
-                    className={`absolute inset-[-10px] rounded-3xl blur-2xl ${glow.bg} pointer-events-none`}
-                    animate={glow.pulse}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  <div
+                    className={`absolute inset-[-10px] rounded-3xl blur-2xl ${glow.bg} ${glow.opacity}${glow.pulse ? ' animate-pulse' : ''} pointer-events-none`}
                     style={{ zIndex: 0 }}
                   />
                   {/* Card */}
