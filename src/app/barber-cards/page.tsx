@@ -85,7 +85,7 @@ export default async function BarberCardsPage() {
               avatarUrl={barber.avatar_url}
               status={stateMap.get(barber.id) ?? 'AVAILABLE'}
               nextApptAt={next?.start_at ?? null}
-              nextApptClientFirst={next?.client_name?.split(' ')[0] ?? null}
+              nextClientName={next?.client_name?.split(' ')[0] ?? null}
               busyReason={busyReason as 'appointment' | 'blocked' | null}
               blockedNoteShort={busyReason === 'blocked' ? shortNote(current?.notes ?? null) : null}
               freeAt={current?.end_at ?? null}

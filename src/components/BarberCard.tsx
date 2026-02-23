@@ -64,16 +64,18 @@ interface Props {
   firstName: string
   lastName: string
   avatarUrl: string | null
-  /** barber_state.state — AVAILABLE | IN_CHAIR | ON_BREAK | CLEANUP | OFF | OTHER */
+  /** barber_state.state — AVAILABLE | IN_CHAIR | ON_BREAK | BLOCKED | CLEANUP | OFF | OTHER */
   status: string
-  /** ISO timestamp of next scheduled appointment (kind='appointment' only) */
+  /** ISO timestamp of next scheduled appointment */
   nextApptAt: string | null
   /** Client first name for the next appointment */
-  nextApptClientFirst?: string | null
+  nextClientName?: string | null
   /** Whether something is currently running ('appointment' | 'blocked' | null) */
   busyReason?: 'appointment' | 'blocked' | null
-  /** Short note label when currently blocked */
+  /** Short note label when currently blocked (pre-computed, always 'Blocked' if no note) */
   blockedNoteShort?: string | null
+  /** ISO timestamp when current block ends — shown alongside next appt */
+  blockedUntil?: string | null
   /** ISO timestamp when current appointment/block ends — drives live countdown */
   freeAt?: string | null
   /** Extra classes applied to the root card div */
@@ -88,7 +90,7 @@ export function BarberCard({
   avatarUrl,
   status,
   nextApptAt,
-  nextApptClientFirst = null,
+  nextClientName = null,
   busyReason = null,
   blockedNoteShort = null,
   freeAt = null,
@@ -111,14 +113,13 @@ export function BarberCard({
 
   const isAvailableNow = countdownText === 'Available Now'
 
-  // ── Build row-2 info pieces ───────────────────────────────────────────────
   const apptTime = nextApptAt ? formatTime(nextApptAt) : null
 
   return (
     <div
       className={`relative w-44 h-72 rounded-xl overflow-hidden flex-shrink-0 shadow-xl ${cfg.glow} bg-zinc-900 ring-1 ring-white/10${className ? ` ${className}` : ''}`}
     >
-      {/* Per-card status glow — clipped by overflow-hidden, can't bleed out */}
+      {/* Per-card status glow — clipped by overflow-hidden */}
       {status === 'AVAILABLE' && (
         <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none" style={{ zIndex: 0 }} />
       )}
@@ -150,7 +151,7 @@ export function BarberCard({
       {/* Bottom gradient */}
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none" />
 
-      {/* Info overlay — 2 rows */}
+      {/* Info overlay */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-5 z-10">
 
         {/* Row 1: Barber name */}
@@ -158,19 +159,14 @@ export function BarberCard({
           {shortName}
         </p>
 
-        {/* Row 2: Appointment info */}
+        {/* Row 2: Next appointment — always visible */}
         <div className="mt-1 leading-snug drop-shadow-lg text-base font-semibold">
-          {busyReason === 'blocked' ? (
-            <p className="text-red-400 break-words">
-              {blockedNoteShort ? `Blocked: ${blockedNoteShort}` : 'Blocked'}
-            </p>
-          ) : apptTime ? (
+          {apptTime ? (
             <p className="text-amber-300">
-              {/* "Next 6:00 PM" stays on one piece; client name can wrap after the dash */}
               <span className="whitespace-nowrap text-white/60">Next </span>
               <span className="whitespace-nowrap">{apptTime}</span>
-              {nextApptClientFirst && (
-                <><span className="whitespace-nowrap"> —</span> {nextApptClientFirst}</>
+              {nextClientName && (
+                <><span className="whitespace-nowrap"> —</span> {nextClientName}</>
               )}
             </p>
           ) : (
@@ -178,7 +174,14 @@ export function BarberCard({
           )}
         </div>
 
-        {/* Countdown */}
+        {/* Row 3: Blocked note — only when blocked */}
+        {busyReason === 'blocked' && (
+          <p className="mt-0.5 text-red-400 text-sm font-semibold break-words drop-shadow-lg leading-snug">
+            {blockedNoteShort ?? 'Blocked'}
+          </p>
+        )}
+
+        {/* Row 4: Countdown */}
         <div className="h-5 mt-1">
           {countdownText && !isAvailableNow ? (
             <p className="text-amber-300 font-bold text-sm tabular-nums leading-tight">
