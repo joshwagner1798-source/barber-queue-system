@@ -1,5 +1,9 @@
-import { TVDisplayTabs } from '@/app/tv-display/TVDisplayTabs'
+import { FloorDisplay } from '@/app/tv-display/FloorDisplay'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+export const metadata = {
+  title: 'Live Barber Status | Sharper Image',
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -17,8 +21,8 @@ export default async function Page() {
     (data as { tv_background_url: string | null } | null)?.tv_background_url ?? undefined
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <TVDisplayTabs shopId={shopId} backgroundUrl={bgUrl} />
+    <main className="h-screen bg-zinc-950 text-white overflow-hidden">
+      <FloorDisplay shopId={shopId} backgroundUrl={bgUrl} />
     </main>
   )
 }
