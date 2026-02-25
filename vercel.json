@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/jobs/reconcile-acuity",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
