@@ -2,7 +2,7 @@ import { KioskForm } from './KioskForm'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = {
-  title: 'Walk-In Sign Up | Sharper Image',
+  title: 'ShopQueue | Walk-In Sign Up',
 }
 
 export const dynamic = 'force-dynamic'

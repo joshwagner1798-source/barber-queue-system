@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { DashboardTabs } from './DashboardTabs'
 
 export const metadata = {
-  title: 'Dashboard | Sharper Image',
+  title: 'ShopQueue | Dashboard',
 }
 
 export const dynamic = 'force-dynamic'

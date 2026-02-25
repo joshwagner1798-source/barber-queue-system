@@ -1,7 +1,7 @@
 import { TVDisplay } from './TVDisplay'
 
 export const metadata = {
-  title: 'Live Queue | Sharper Image',
+  title: 'ShopQueue | Live Queue',
 }
 
 export const dynamic = 'force-dynamic'

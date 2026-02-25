@@ -2,7 +2,7 @@ import { FloorDisplay } from '@/app/tv-display/FloorDisplay'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = {
-  title: 'Live Barber Status | Sharper Image',
+  title: 'ShopQueue | Live Barber Status',
 }
 
 export const dynamic = 'force-dynamic'

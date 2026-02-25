@@ -2,7 +2,7 @@ import { TVDisplayTabs } from './TVDisplayTabs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = {
-  title: 'Floor Display | Sharper Image',
+  title: 'ShopQueue | Live Barber Status',
 }
 
 export const dynamic = 'force-dynamic'
