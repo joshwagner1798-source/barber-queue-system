@@ -113,6 +113,60 @@ This prevents silent data corruption from using wrong/empty credentials.
 
 ---
 
+## Storage Buckets (One-Time Setup)
+
+Two buckets must exist in your Supabase project before uploads will work.
+Run the migrations below in **Supabase → SQL Editor** (or `supabase db push`).
+
+| Bucket | Migration file | Used by |
+|---|---|---|
+| `ui-backgrounds` | `00015_shop_settings.sql` | TV / kiosk background images |
+| `barber-photos` | `00016_barber_photos_bucket.sql` | Barber avatar photos |
+
+Both buckets are **public** (avatars and backgrounds need unauthenticated read access).
+Upload/update/delete is restricted to `owner` and `admin` roles via RLS policies.
+
+> **"Bucket not found" error?**
+> The bucket doesn't exist yet. Run the corresponding migration SQL in the
+> Supabase SQL Editor. The upload API routes use the service-role key, so RLS
+> is bypassed for writes — the bucket just needs to exist.
+
+### Quick setup SQL (run once in Supabase SQL Editor)
+
+```sql
+-- barber-photos bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('barber-photos', 'barber-photos', true, 5242880,
+        ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "public read barber-photos"
+  ON storage.objects FOR SELECT USING (bucket_id = 'barber-photos');
+
+CREATE POLICY "owner insert barber-photos"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'barber-photos' AND
+    auth.uid() IN (SELECT auth_id FROM users WHERE role IN ('owner','admin')));
+
+CREATE POLICY "owner update barber-photos"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'barber-photos' AND
+    auth.uid() IN (SELECT auth_id FROM users WHERE role IN ('owner','admin')));
+
+CREATE POLICY "owner delete barber-photos"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'barber-photos' AND
+    auth.uid() IN (SELECT auth_id FROM users WHERE role IN ('owner','admin')));
+
+-- ui-backgrounds bucket (if not already created by 00015 migration)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('ui-backgrounds', 'ui-backgrounds', true, 5242880,
+        ARRAY['image/jpeg','image/png','image/webp'])
+ON CONFLICT (id) DO NOTHING;
+```
+
+---
+
 ## Test Checklist (Production)
 
 ```bash
