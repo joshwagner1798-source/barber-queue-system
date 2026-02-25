@@ -1,6 +1,5 @@
 import { TVDisplayTabs } from './TVDisplayTabs'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { redirect } from 'next/navigation'
 
 export const metadata = {
   title: 'Floor Display | Sharper Image',
@@ -9,18 +8,11 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ shop_id?: string; noRedirect?: string }>
+  searchParams: Promise<{ shop_id?: string }>
 }
 
 export default async function TVDisplayPage({ searchParams }: Props) {
   const params = await searchParams
-
-  // ✅ If someone hits the old TV link with shop_id, send them to the new clean URL.
-  // ✅ But allow bypass for admin/owner settings by adding ?noRedirect=1
-  if (params.shop_id && params.noRedirect !== '1') {
-    redirect('/sharperimage/queue/tv')
-  }
-
   const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
 
   const admin = createAdminClient()
