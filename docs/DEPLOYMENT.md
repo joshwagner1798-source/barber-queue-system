@@ -1,4 +1,5 @@
 # Deployment Guide — barber_scheduling
+<!-- auto-deploy test: 2026-02-24 -->
 
 This document lists every environment variable required for a successful Vercel
 production deployment and explains how each one is used.
