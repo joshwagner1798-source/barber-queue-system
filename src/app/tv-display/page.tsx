@@ -1,4 +1,4 @@
-import { FloorDisplay } from './FloorDisplay'
+import { TVDisplayTabs } from './TVDisplayTabs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const metadata = {
@@ -25,8 +25,8 @@ export default async function TVDisplayPage({ searchParams }: Props) {
   const bgUrl = (data as { tv_background_url: string | null } | null)?.tv_background_url ?? undefined
 
   return (
-    <main className="h-screen bg-zinc-950 text-white overflow-hidden">
-      <FloorDisplay shopId={shopId} backgroundUrl={bgUrl} />
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <TVDisplayTabs shopId={shopId} backgroundUrl={bgUrl} />
     </main>
   )
 }
