@@ -6,6 +6,7 @@ export const metadata = {
 }
 
 export const dynamic = 'force-dynamic'
+// force rebuild
 
 interface Props {
   searchParams: Promise<{ shop_id?: string }>
