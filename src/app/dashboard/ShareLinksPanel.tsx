@@ -1,22 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 interface Props {
   shopId: string
   shopSlug: string | null
 }
 
+const BASE = 'https://getshopqueue.vercel.app'
+
 export function ShareLinksPanel({ shopId, shopSlug }: Props) {
-  const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
 
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
-
-  const tvUrl    = origin ? `${origin}/sharperimage/tv`    : ''
-  const kioskUrl = origin ? `${origin}/sharperimage/kiosk` : ''
+  const tvUrl    = `${BASE}/sharperimage/tv`
+  const kioskUrl = `${BASE}/sharperimage/kiosk`
 
   async function copyToClipboard(text: string, key: string) {
     try {
@@ -25,8 +22,6 @@ export function ShareLinksPanel({ shopId, shopSlug }: Props) {
       setTimeout(() => setCopied(null), 2000)
     } catch {}
   }
-
-  if (!origin) return null
 
   return (
     <div className="bg-secondary-800 border border-secondary-700 rounded-lg p-5 space-y-4">
