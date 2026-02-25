@@ -1,15 +1,18 @@
 -- =============================================
--- BARBERSHOP SCHEDULING TOOL - INITIAL SCHEMA
+-- BARBERSHOP SCHEDULING TOOL - INITIAL SCHEMA (FIXED)
 -- =============================================
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Supabase standard: put extension objects in "extensions"
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+-- Enable UUID extension into extensions schema
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
 -- =============================================
 -- SHOPS TABLE (Multi-tenant foundation)
 -- =============================================
-CREATE TABLE shops (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.shops (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   name              VARCHAR(255) NOT NULL,
   slug              VARCHAR(100) UNIQUE NOT NULL,
   address           TEXT,
@@ -26,16 +29,16 @@ CREATE TABLE shops (
   require_deposit              BOOLEAN DEFAULT false,
 
   -- Metadata
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =============================================
 -- USERS TABLE (Customers and Staff)
 -- =============================================
-CREATE TABLE users (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID REFERENCES shops(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.users (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID REFERENCES public.shops(id) ON DELETE CASCADE,
 
   -- Supabase Auth link
   auth_id           UUID UNIQUE,
@@ -60,21 +63,21 @@ CREATE TABLE users (
   email_notifications     BOOLEAN DEFAULT true,
   sms_notifications       BOOLEAN DEFAULT false,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
 
   CONSTRAINT users_shop_email_unique UNIQUE (shop_id, email)
 );
 
-CREATE INDEX idx_users_auth_id ON users(auth_id);
-CREATE INDEX idx_users_shop_role ON users(shop_id, role);
+CREATE INDEX IF NOT EXISTS idx_users_auth_id ON public.users(auth_id);
+CREATE INDEX IF NOT EXISTS idx_users_shop_role ON public.users(shop_id, role);
 
 -- =============================================
 -- SERVICES TABLE
 -- =============================================
-CREATE TABLE services (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.services (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
 
   name              VARCHAR(100) NOT NULL,
   description       TEXT,
@@ -87,26 +90,26 @@ CREATE TABLE services (
   is_active         BOOLEAN DEFAULT true,
   display_order     INT DEFAULT 0,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_services_shop ON services(shop_id);
-CREATE INDEX idx_services_active ON services(shop_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_services_shop ON public.services(shop_id);
+CREATE INDEX IF NOT EXISTS idx_services_active ON public.services(shop_id, is_active);
 
 -- =============================================
 -- BARBER_SERVICES (Which barbers offer which services)
 -- =============================================
-CREATE TABLE barber_services (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  barber_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service_id        UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.barber_services (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  barber_id         UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  service_id        UUID NOT NULL REFERENCES public.services(id) ON DELETE CASCADE,
 
   -- Optional price/duration override per barber
   price_override    DECIMAL(10,2),
   duration_override INT,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
 
   CONSTRAINT barber_services_unique UNIQUE (barber_id, service_id)
 );
@@ -114,18 +117,18 @@ CREATE TABLE barber_services (
 -- =============================================
 -- BUSINESS_HOURS TABLE
 -- =============================================
-CREATE TABLE business_hours (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  barber_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.business_hours (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  barber_id         UUID REFERENCES public.users(id) ON DELETE CASCADE,
 
   day_of_week       INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
   open_time         TIME NOT NULL,
   close_time        TIME NOT NULL,
   is_closed         BOOLEAN DEFAULT false,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
 
   CONSTRAINT business_hours_unique UNIQUE (shop_id, barber_id, day_of_week)
 );
@@ -133,40 +136,41 @@ CREATE TABLE business_hours (
 -- =============================================
 -- TIME_BLOCKS TABLE (Breaks, time off, special availability)
 -- =============================================
-CREATE TABLE time_blocks (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  barber_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.time_blocks (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  barber_id         UUID REFERENCES public.users(id) ON DELETE CASCADE,
 
   block_type        VARCHAR(20) NOT NULL,
   title             VARCHAR(100),
 
-  start_datetime    TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_datetime      TIMESTAMP WITH TIME ZONE NOT NULL,
+  start_datetime    TIMESTAMPTZ NOT NULL,
+  end_datetime      TIMESTAMPTZ NOT NULL,
 
   recurrence_rule   TEXT,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_time_blocks_barber_dates ON time_blocks(barber_id, start_datetime, end_datetime);
+CREATE INDEX IF NOT EXISTS idx_time_blocks_barber_dates
+  ON public.time_blocks(barber_id, start_datetime, end_datetime);
 
 -- =============================================
 -- APPOINTMENTS TABLE
 -- =============================================
-CREATE TABLE appointments (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.appointments (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
 
   -- Who
-  customer_id       UUID NOT NULL REFERENCES users(id),
-  barber_id         UUID NOT NULL REFERENCES users(id),
-  service_id        UUID NOT NULL REFERENCES services(id),
+  customer_id       UUID NOT NULL REFERENCES public.users(id),
+  barber_id         UUID NOT NULL REFERENCES public.users(id),
+  service_id        UUID NOT NULL REFERENCES public.services(id),
 
   -- When
-  start_time        TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_time          TIMESTAMP WITH TIME ZONE NOT NULL,
+  start_time        TIMESTAMPTZ NOT NULL,
+  end_time          TIMESTAMPTZ NOT NULL,
 
   -- Pricing (snapshot at booking time)
   service_price     DECIMAL(10,2) NOT NULL,
@@ -179,26 +183,26 @@ CREATE TABLE appointments (
   notes             TEXT,
 
   -- Cancellation
-  cancelled_at      TIMESTAMP WITH TIME ZONE,
+  cancelled_at      TIMESTAMPTZ,
   cancellation_reason TEXT,
-  cancelled_by      UUID REFERENCES users(id),
+  cancelled_by      UUID REFERENCES public.users(id),
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_appointments_shop_date ON appointments(shop_id, start_time);
-CREATE INDEX idx_appointments_barber_date ON appointments(barber_id, start_time);
-CREATE INDEX idx_appointments_customer ON appointments(customer_id);
-CREATE INDEX idx_appointments_status ON appointments(shop_id, status);
+CREATE INDEX IF NOT EXISTS idx_appointments_shop_date ON public.appointments(shop_id, start_time);
+CREATE INDEX IF NOT EXISTS idx_appointments_barber_date ON public.appointments(barber_id, start_time);
+CREATE INDEX IF NOT EXISTS idx_appointments_customer ON public.appointments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON public.appointments(shop_id, status);
 
 -- =============================================
 -- PAYMENTS TABLE
 -- =============================================
-CREATE TABLE payments (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  appointment_id    UUID NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.payments (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  appointment_id    UUID NOT NULL REFERENCES public.appointments(id) ON DELETE CASCADE,
 
   -- Stripe data
   stripe_payment_intent_id   VARCHAR(255) UNIQUE,
@@ -217,21 +221,21 @@ CREATE TABLE payments (
   refunded_amount   DECIMAL(10,2) DEFAULT 0,
   refund_reason     TEXT,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_payments_appointment ON payments(appointment_id);
-CREATE INDEX idx_payments_stripe ON payments(stripe_payment_intent_id);
+CREATE INDEX IF NOT EXISTS idx_payments_appointment ON public.payments(appointment_id);
+CREATE INDEX IF NOT EXISTS idx_payments_stripe ON public.payments(stripe_payment_intent_id);
 
 -- =============================================
 -- NOTIFICATIONS TABLE (Audit trail)
 -- =============================================
-CREATE TABLE notifications (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  shop_id           UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  appointment_id    UUID REFERENCES appointments(id) ON DELETE SET NULL,
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id                UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  shop_id           UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+  user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  appointment_id    UUID REFERENCES public.appointments(id) ON DELETE SET NULL,
 
   notification_type VARCHAR(50) NOT NULL,
   channel           VARCHAR(10) NOT NULL,
@@ -240,44 +244,58 @@ CREATE TABLE notifications (
   subject           VARCHAR(255),
   body_preview      TEXT,
 
-  sent_at           TIMESTAMP WITH TIME ZONE,
+  sent_at           TIMESTAMPTZ,
   error_message     TEXT,
 
-  created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_user ON notifications(user_id);
-CREATE INDEX idx_notifications_status ON notifications(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON public.notifications(status, created_at);
 
 -- =============================================
 -- UPDATED_AT TRIGGER FUNCTION
 -- =============================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+  NEW.updated_at = NOW();
+  RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Apply trigger to tables with updated_at
-CREATE TRIGGER update_shops_updated_at BEFORE UPDATE ON shops
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Apply triggers to tables with updated_at
+DROP TRIGGER IF EXISTS update_shops_updated_at ON public.shops;
+CREATE TRIGGER update_shops_updated_at
+  BEFORE UPDATE ON public.shops
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+CREATE TRIGGER update_users_updated_at
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_services_updated_at BEFORE UPDATE ON services
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_services_updated_at ON public.services;
+CREATE TRIGGER update_services_updated_at
+  BEFORE UPDATE ON public.services
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_business_hours_updated_at BEFORE UPDATE ON business_hours
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_business_hours_updated_at ON public.business_hours;
+CREATE TRIGGER update_business_hours_updated_at
+  BEFORE UPDATE ON public.business_hours
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_time_blocks_updated_at BEFORE UPDATE ON time_blocks
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_time_blocks_updated_at ON public.time_blocks;
+CREATE TRIGGER update_time_blocks_updated_at
+  BEFORE UPDATE ON public.time_blocks
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_appointments_updated_at ON public.appointments;
+CREATE TRIGGER update_appointments_updated_at
+  BEFORE UPDATE ON public.appointments
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_payments_updated_at ON public.payments;
+CREATE TRIGGER update_payments_updated_at
+  BEFORE UPDATE ON public.payments
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
