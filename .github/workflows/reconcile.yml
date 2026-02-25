@@ -1,0 +1,38 @@
+name: Reconcile Acuity
+
+on:
+  schedule:
+    # Every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run reconcile job
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            "https://barberscheduling-flame.vercel.app/api/jobs/reconcile-acuity?shop_id=${{ secrets.DEFAULT_SHOP_ID }}" \
+            -H "Authorization: Bearer ${{ secrets.RECONCILE_SECRET }}")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "HTTP $status"
+          echo "$body" | python3 -c "
+          import sys, json
+          try:
+              d = json.load(sys.stdin)
+              conns = d.get('connections', 0)
+              results = d.get('results', [])
+              total_appts  = sum(r.get('appts',  0) for r in results)
+              total_blocks = sum(r.get('blocks', 0) for r in results)
+              errors = [r for r in results if r.get('error')]
+              print(f'ok={d.get(\"ok\")}  connections={conns}  appts={total_appts}  blocks={total_blocks}')
+              if errors:
+                  print('ERRORS:')
+                  for e in errors: print(f'  calendar={e[\"calendarId\"]}: {e[\"error\"]}')
+          except Exception as ex:
+              print('Failed to parse response:', ex)
+              print(sys.stdin.read())
+          " <<< "$body"
+          [ "$status" = "200" ] || exit 1
