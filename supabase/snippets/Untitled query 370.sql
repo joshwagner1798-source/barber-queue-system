@@ -1,0 +1,1 @@
+ALTER TABLE shops ADD COLUMN shop_slug TEXT UNIQUE;

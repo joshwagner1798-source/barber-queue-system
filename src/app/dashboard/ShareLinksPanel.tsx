@@ -7,18 +7,6 @@ interface Props {
   shopSlug: string | null
 }
 
-function buildLink(base: string, path: string, shopId: string, shopSlug: string | null): string {
-  const identifier = shopSlug ?? shopId
-  const isSlug = shopSlug !== null
-  // Prefer slug-based path if slug exists; otherwise use ?shop_id= param
-  if (isSlug) {
-    // Future-proof: /tv/<slug> and /kiosk/<slug> could be implemented later.
-    // For now, use query param with slug value as shop_id still uses uuid.
-    return `${base}${path}?shop_id=${encodeURIComponent(shopId)}`
-  }
-  return `${base}${path}?shop_id=${encodeURIComponent(shopId)}`
-}
-
 export function ShareLinksPanel({ shopId, shopSlug }: Props) {
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
@@ -27,17 +15,20 @@ export function ShareLinksPanel({ shopId, shopSlug }: Props) {
     setOrigin(window.location.origin)
   }, [])
 
-  const tvUrl     = origin ? buildLink(origin, '/tv-display', shopId, shopSlug) : ''
-  const kioskUrl  = origin ? buildLink(origin, '/kiosk',      shopId, shopSlug) : ''
+  // ✅ YOUR CLEAN SHARPER IMAGE TV LINK
+  const tvUrl = origin ? `${origin}/sharperimage/queue/tv` : ''
+
+  // Keep kiosk using existing system
+  const kioskUrl = origin
+    ? `${origin}/kiosk?shop_id=${encodeURIComponent(shopId)}`
+    : ''
 
   async function copyToClipboard(text: string, key: string) {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(key)
       setTimeout(() => setCopied(null), 2000)
-    } catch {
-      // Clipboard API may fail in non-secure contexts; fall back silently
-    }
+    } catch {}
   }
 
   if (!origin) return null
@@ -47,14 +38,11 @@ export function ShareLinksPanel({ shopId, shopSlug }: Props) {
       <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Share Links</h3>
       <p className="text-secondary-400 text-xs">
         Open these on any browser in your shop. They update live.
-        {shopSlug && (
-          <span className="ml-1 text-secondary-500">(Shop slug: <code className="font-mono">{shopSlug}</code>)</span>
-        )}
       </p>
 
       <div className="space-y-3">
         <LinkRow label="TV Display" url={tvUrl} copyKey="tv" copied={copied} onCopy={copyToClipboard} />
-        <LinkRow label="Kiosk"      url={kioskUrl} copyKey="kiosk" copied={copied} onCopy={copyToClipboard} />
+        <LinkRow label="Kiosk" url={kioskUrl} copyKey="kiosk" copied={copied} onCopy={copyToClipboard} />
       </div>
     </div>
   )
