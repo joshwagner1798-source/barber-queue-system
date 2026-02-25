@@ -69,9 +69,11 @@ function computeWaitSecs(statuses: TVBarberStatus[], waitingCount: number): numb
 interface Props {
   /** Custom background URL from shop_settings; falls back to default image. */
   backgroundUrl?: string
+  /** Shop ID to pass to API calls. If omitted, the API uses DEFAULT_SHOP_ID. */
+  shopId?: string
 }
 
-export function FloorDisplay({ backgroundUrl }: Props) {
+export function FloorDisplay({ backgroundUrl, shopId }: Props) {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins]   = useState<TVWalkin[]>([])
   const [barbers, setBarbers]   = useState<TVBarber[]>([])
@@ -79,7 +81,8 @@ export function FloorDisplay({ backgroundUrl }: Props) {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv')
+      const url = shopId ? `/api/tv?shop_id=${encodeURIComponent(shopId)}` : '/api/tv'
+      const res = await fetch(url)
       if (!res.ok) return
       const data = await res.json()
       setStatuses(data.barber_statuses ?? [])

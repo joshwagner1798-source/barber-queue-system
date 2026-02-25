@@ -7,14 +7,19 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
+interface Props {
+  searchParams: Promise<{ shop_id?: string }>
+}
 
-export default async function KioskPage() {
+export default async function KioskPage({ searchParams }: Props) {
+  const params = await searchParams
+  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('shop_settings')
     .select('kiosk_background_url')
-    .eq('shop_id', SHOP_ID)
+    .eq('shop_id', shopId)
     .maybeSingle()
 
   const bgUrl = (data as { kiosk_background_url: string | null } | null)?.kiosk_background_url
@@ -33,7 +38,7 @@ export default async function KioskPage() {
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none" />
       <div className="relative z-10 w-full">
-        <KioskForm />
+        <KioskForm shopId={shopId} />
       </div>
     </main>
   )

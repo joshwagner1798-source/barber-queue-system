@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react'
 import { FloorDisplay } from '@/app/tv-display/FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
 import { AdminDashboard } from '@/app/admin/AdminDashboard'
+import { ShareLinksPanel } from './ShareLinksPanel'
 
 type Tab = 'tv' | 'kiosk' | 'settings'
 
 interface Props {
   currentUserName: string
   shopId: string
+  shopSlug: string | null
   initialBarbers: Array<{ id: string; first_name: string; last_name: string }>
   initialStates: Array<{ barber_id: string; state: string; state_since: string }>
   initialWalkins: Array<{
@@ -38,6 +40,7 @@ const TABS: { id: Tab; label: string }[] = [
 export function DashboardTabs({
   currentUserName,
   shopId,
+  shopSlug,
   initialBarbers,
   initialStates,
   initialWalkins,
@@ -87,7 +90,7 @@ export function DashboardTabs({
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'tv' && <FloorDisplay />}
+        {activeTab === 'tv' && <FloorDisplay shopId={shopId || undefined} />}
 
         {activeTab === 'kiosk' && (
           <div
@@ -101,20 +104,25 @@ export function DashboardTabs({
           >
             <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none" />
             <div className="relative z-10 w-full">
-              <KioskForm />
+              <KioskForm shopId={shopId || undefined} />
             </div>
           </div>
         )}
 
         {activeTab === 'settings' && (
-          <AdminDashboard
-            currentUserName={currentUserName}
-            shopId={shopId}
-            initialWalkins={initialWalkins}
-            initialBarbers={initialBarbers}
-            initialStates={initialStates}
-            initialEvents={initialEvents}
-          />
+          <div className="flex flex-col gap-6 p-6 overflow-y-auto">
+            {shopId && (
+              <ShareLinksPanel shopId={shopId} shopSlug={shopSlug} />
+            )}
+            <AdminDashboard
+              currentUserName={currentUserName}
+              shopId={shopId}
+              initialWalkins={initialWalkins}
+              initialBarbers={initialBarbers}
+              initialStates={initialStates}
+              initialEvents={initialEvents}
+            />
+          </div>
         )}
       </div>
     </div>

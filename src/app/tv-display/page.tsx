@@ -7,21 +7,26 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
+interface Props {
+  searchParams: Promise<{ shop_id?: string }>
+}
 
-export default async function TVDisplayPage() {
+export default async function TVDisplayPage({ searchParams }: Props) {
+  const params = await searchParams
+  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('shop_settings')
     .select('tv_background_url')
-    .eq('shop_id', SHOP_ID)
+    .eq('shop_id', shopId)
     .maybeSingle()
 
   const bgUrl = (data as { tv_background_url: string | null } | null)?.tv_background_url ?? undefined
 
   return (
     <main className="h-screen bg-zinc-950 text-white overflow-hidden">
-      <FloorDisplay backgroundUrl={bgUrl} />
+      <FloorDisplay shopId={shopId} backgroundUrl={bgUrl} />
     </main>
   )
 }

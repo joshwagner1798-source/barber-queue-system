@@ -5,10 +5,9 @@
 // without looking at the UI. No auth required (internal debug tool).
 // ---------------------------------------------------------------------------
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-const BARBERS_SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
+import { requireShopId } from '@/lib/shop-resolver'
 
 const nyDowShortFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' })
 const nyTimeFmt     = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })
@@ -22,7 +21,10 @@ function computeOffLabel(offUntilAt: string, now: Date): string {
     : `Off until ${nyMonthDayFmt.format(d)}`
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { shopId, error: shopErr } = requireShopId(request)
+  if (shopErr) return NextResponse.json(shopErr, { status: 400 })
+
   const admin = createAdminClient()
   const now = new Date()
   const nowIso = now.toISOString()
@@ -32,7 +34,7 @@ export async function GET() {
       admin
         .from('users')
         .select('id, first_name, last_name')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .eq('role', 'barber')
         .eq('is_active', true)
         .order('display_order', { ascending: true }),
@@ -41,7 +43,7 @@ export async function GET() {
       admin
         .from('provider_blocks')
         .select('barber_id, start_at, end_at, note_short')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .gte('end_at', nowIso)
         .lte('start_at', new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString())
         .order('start_at', { ascending: true }),
@@ -50,7 +52,7 @@ export async function GET() {
       admin
         .from('provider_blocks')
         .select('barber_id, start_at, end_at, note_short')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .lte('start_at', nowIso)
         .gt('end_at', nowIso),
 
@@ -58,7 +60,7 @@ export async function GET() {
       admin
         .from('provider_appointments')
         .select('barber_id, start_at, end_at')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .eq('kind', 'appointment')
         .eq('status', 'ACTIVE')
         .lte('start_at', nowIso)
@@ -68,7 +70,7 @@ export async function GET() {
       admin
         .from('provider_appointments')
         .select('barber_id, start_at, client_name')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .eq('kind', 'appointment')
         .gt('start_at', nowIso)
         .not('status', 'in', '("CANCELLED","DELETED")')
@@ -78,7 +80,7 @@ export async function GET() {
       admin
         .from('calendar_connections')
         .select('barber_id, off_until_at')
-        .eq('shop_id', BARBERS_SHOP_ID)
+        .eq('shop_id', shopId)
         .eq('provider', 'acuity')
         .eq('active', true),
     ])
