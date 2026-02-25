@@ -11,7 +11,7 @@ const SHOP_ID = '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
 
 export default async function DashboardPage() {
   const admin = createAdminClient()
-  const shopId = process.env.DEFAULT_SHOP_ID ?? SHOP_ID
+  const shopId = SHOP_ID
 
   const [barbersRes, statesRes, walkinsRes, eventsRes, shopRes] = await Promise.all([
     admin
