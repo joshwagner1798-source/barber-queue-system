@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Look up user role from DB
-  const { data: profile, error: profileError } = await supabase
+  const { data: profileData, error: profileError } = await supabase
     .from('users')
     .select('role')
     .eq('auth_id', user.id)
@@ -22,11 +22,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (!profile) {
+  if (!profileData) {
     console.error('[middleware] no profile found for authenticated user', { userId: user.id })
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  const profile = profileData as unknown as { role: string }
   const role = profile.role
 
   // Wrong role for route
