@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 const SHOP_ID = '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
 
 export default async function Page() {
-  const shopId = process.env.DEFAULT_SHOP_ID ?? SHOP_ID
+  const shopId = SHOP_ID
 
   const admin = createAdminClient()
   const { data } = await admin
