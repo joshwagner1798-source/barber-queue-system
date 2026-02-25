@@ -9,8 +9,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const admin = createAdminClient()
+  const shopId = process.env.DEFAULT_SHOP_ID ?? ''
 
-  const [barbersRes, statesRes, walkinsRes, eventsRes] = await Promise.all([
+  const [barbersRes, statesRes, walkinsRes, eventsRes, shopRes] = await Promise.all([
     admin
       .from('users')
       .select('id, first_name, last_name')
@@ -32,12 +33,19 @@ export default async function DashboardPage() {
       .select('id, type, payload, created_at')
       .order('created_at', { ascending: false })
       .limit(50),
+
+    shopId
+      ? admin.from('shops').select('id, name, slug').eq('id', shopId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ])
+
+  const shopSlug = (shopRes.data as { slug?: string } | null)?.slug ?? null
 
   return (
     <DashboardTabs
       currentUserName=""
-      shopId=""
+      shopId={shopId}
+      shopSlug={shopSlug}
       initialBarbers={(barbersRes.data ?? []) as Array<{ id: string; first_name: string; last_name: string }>}
       initialStates={(statesRes.data ?? []) as Array<{ barber_id: string; state: string; state_since: string }>}
       initialWalkins={(walkinsRes.data ?? []) as Array<{

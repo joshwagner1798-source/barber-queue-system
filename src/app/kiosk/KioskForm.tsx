@@ -8,15 +8,22 @@ import type { KioskBarber } from '@/lib/kiosk/barbers'
 
 type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
-export function KioskForm() {
+interface KioskFormProps {
+  shopId?: string
+}
+
+export function KioskForm({ shopId }: KioskFormProps) {
   const [barbers, setBarbers] = useState<KioskBarber[]>([])
 
   useEffect(() => {
-    fetch('/api/kiosk/barbers')
+    const url = shopId
+      ? `/api/kiosk/barbers?shop_id=${encodeURIComponent(shopId)}`
+      : '/api/kiosk/barbers'
+    fetch(url)
       .then((r) => r.json())
       .then((data: KioskBarber[]) => setBarbers(data))
       .catch((err) => console.error('[KioskForm] failed to load barbers:', err))
-  }, [])
+  }, [shopId])
 
   // Form state
   const [firstName, setFirstName] = useState('')

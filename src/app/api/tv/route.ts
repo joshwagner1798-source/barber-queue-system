@@ -1,10 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-// Walkins and barber_status use the legacy seed shop_id
-const SHOP_ID = '00000000-0000-0000-0000-000000000001'
-// Users (barbers) and their appointments were seeded with a different shop_id
-const BARBERS_SHOP_ID = 'a60f8d73-3d21-41be-b4bd-eec9fbc5d49b'
+import { requireShopId, checkRequiredEnv } from '@/lib/shop-resolver'
 
 // ── NY timezone formatters (server-side) ─────────────────────────────────────
 const nyDowShortFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' })
@@ -25,7 +21,13 @@ function computeOffLabel(offUntilAt: string, now: Date): string {
 }
 
 /** TV initial load — returns only display-safe data (no phone, no client_id). */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const envErr = checkRequiredEnv(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'])
+  if (envErr) return NextResponse.json({ error: 'Server misconfiguration', missing: envErr.missing }, { status: 500 })
+
+  const { shopId, error: shopErr } = requireShopId(request)
+  if (shopErr) return NextResponse.json(shopErr, { status: 400 })
+
   const admin  = createAdminClient()
   const now    = new Date()
   const nowIso = now.toISOString()
@@ -39,21 +41,21 @@ export async function GET() {
     nextApptsResult,
     calendarConnsResult,
   ] = await Promise.all([
-    admin.from('barber_status').select('*').eq('shop_id', SHOP_ID),
+    admin.from('barber_status').select('*').eq('shop_id', shopId),
 
     admin
       .from('walkins')
       .select(
         'id, status, display_name, position, assigned_barber_id, called_at, preference_type, preferred_barber_id, service_type, created_at',
       )
-      .eq('shop_id', SHOP_ID)
+      .eq('shop_id', shopId)
       .in('status', ['WAITING', 'CALLED', 'IN_SERVICE'])
       .order('position', { ascending: true }),
 
     admin
       .from('users')
       .select('id, first_name, last_name, avatar_url, display_order')
-      .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('shop_id', shopId)
       .eq('role', 'barber')
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
@@ -63,7 +65,7 @@ export async function GET() {
     admin
       .from('provider_blocks')
       .select('barber_id, start_at, end_at, note_short')
-      .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('shop_id', shopId)
       .lte('start_at', nowIso)
       .gt('end_at', nowIso),
 
@@ -71,7 +73,7 @@ export async function GET() {
     admin
       .from('provider_appointments')
       .select('barber_id, end_at')
-      .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('shop_id', shopId)
       .eq('kind', 'appointment')
       .eq('status', 'ACTIVE')
       .lte('start_at', nowIso)
@@ -81,7 +83,7 @@ export async function GET() {
     admin
       .from('provider_appointments')
       .select('barber_id, start_at, client_name')
-      .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('shop_id', shopId)
       .eq('kind', 'appointment')
       .gt('start_at', nowIso)
       .not('status', 'in', '("CANCELLED","DELETED")')
@@ -91,7 +93,7 @@ export async function GET() {
     admin
       .from('calendar_connections')
       .select('barber_id, off_until_at')
-      .eq('shop_id', BARBERS_SHOP_ID)
+      .eq('shop_id', shopId)
       .eq('provider', 'acuity')
       .eq('active', true),
   ])

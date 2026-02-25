@@ -41,7 +41,11 @@ interface TVBarber {
 // Main TV Display component
 // ---------------------------------------------------------------------------
 
-export function TVDisplay() {
+interface TVDisplayProps {
+  shopId?: string
+}
+
+export function TVDisplay({ shopId }: TVDisplayProps) {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins] = useState<TVWalkin[]>([])
   const [barbers, setBarbers] = useState<TVBarber[]>([])
@@ -55,7 +59,8 @@ export function TVDisplay() {
   // Fetch all data from /api/tv
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/tv')
+      const url = shopId ? `/api/tv?shop_id=${encodeURIComponent(shopId)}` : '/api/tv'
+      const res = await fetch(url)
       if (!res.ok) return
       const data = await res.json()
       setStatuses(data.barber_statuses ?? [])

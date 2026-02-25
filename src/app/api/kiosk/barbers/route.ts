@@ -1,20 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { KioskBarber } from '@/lib/kiosk/barbers'
+import { requireShopId, checkRequiredEnv } from '@/lib/shop-resolver'
 
-const SHOP_ID = '00000000-0000-0000-0000-000000000001'
+export async function GET(request: NextRequest) {
+  const envErr = checkRequiredEnv(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'])
+  if (envErr) return NextResponse.json({ error: 'Server misconfiguration', missing: envErr.missing }, { status: 500 })
 
-export async function GET() {
-  // Debug: confirm this runs server-side as a normal API route
-  console.log('[api/kiosk/barbers] env: server (Node.js API route)')
-  console.log('[api/kiosk/barbers] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const { shopId, error: shopErr } = requireShopId(request)
+  if (shopErr) return NextResponse.json(shopErr, { status: 400 })
 
   const admin = createAdminClient()
 
   const { data, error } = await admin
     .from('users')
     .select('id, first_name, last_name')
-    .eq('shop_id', SHOP_ID)
+    .eq('shop_id', shopId)
     .eq('role', 'barber')
     .eq('is_active', true)
     .order('display_order', { ascending: true })
