@@ -6,7 +6,7 @@ import { KioskForm } from '@/app/kiosk/KioskForm'
 import { AdminDashboard } from '@/app/admin/AdminDashboard'
 import { ShareLinksPanel } from './ShareLinksPanel'
 
-type Tab = 'tv' | 'kiosk' | 'settings'
+type Tab = 'tv' | 'kiosk' | 'settings' | 'links'
 
 interface Props {
   currentUserName: string
@@ -35,6 +35,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'tv', label: 'TV Display' },
   { id: 'kiosk', label: 'Kiosk' },
   { id: 'settings', label: 'Owner Settings' },
+  { id: 'links', label: 'Share Links' },
 ]
 
 export function DashboardTabs({
@@ -111,9 +112,6 @@ export function DashboardTabs({
 
         {activeTab === 'settings' && (
           <div className="flex flex-col gap-6 p-6 overflow-y-auto">
-            {shopId && (
-              <ShareLinksPanel shopId={shopId} shopSlug={shopSlug} />
-            )}
             <AdminDashboard
               currentUserName={currentUserName}
               shopId={shopId}
@@ -122,6 +120,14 @@ export function DashboardTabs({
               initialStates={initialStates}
               initialEvents={initialEvents}
             />
+          </div>
+        )}
+
+        {activeTab === 'links' && (
+          <div className="flex flex-col gap-6 p-6 max-w-lg">
+            {shopId && (
+              <ShareLinksPanel shopId={shopId} shopSlug={shopSlug} />
+            )}
           </div>
         )}
       </div>
