@@ -15,13 +15,8 @@ export function ShareLinksPanel({ shopId, shopSlug }: Props) {
     setOrigin(window.location.origin)
   }, [])
 
-  // ✅ YOUR CLEAN SHARPER IMAGE TV LINK
-  const tvUrl = origin ? `${origin}/sharperimage/queue/tv` : ''
-
-  // Keep kiosk using existing system
-  const kioskUrl = origin
-    ? `${origin}/kiosk?shop_id=${encodeURIComponent(shopId)}`
-    : ''
+  const tvUrl    = origin ? `${origin}/sharperimage/tv`    : ''
+  const kioskUrl = origin ? `${origin}/sharperimage/kiosk` : ''
 
   async function copyToClipboard(text: string, key: string) {
     try {
