@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { submitWalkin, checkInWalkin, lookupByPhone } from '@/lib/kiosk/actions'
@@ -44,10 +44,6 @@ export function KioskForm({ shopId }: KioskFormProps) {
   const [walkinId, setWalkinId] = useState<string | null>(null)
   const [assignedBarberName, setAssignedBarberName] = useState<string | null>(null)
 
-  // TEMP debug panel — remove in final commit
-  const [debugLog, setDebugLog] = useState<string[]>([])
-  const [debugVisible, setDebugVisible] = useState(false)
-  const dbg = useRef((msg: string) => setDebugLog((l) => [...l.slice(-8), msg]))
 
   // Auto-reset to form after 30s on non-form screens
   const resetToForm = useCallback(() => {
@@ -93,9 +89,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
         preferredBarberId: preferenceType === 'PREFERRED' ? preferredBarberId : null,
         shopId,
       }
-      dbg.current(`submit → ${JSON.stringify(payload)}`)
       const result = await submitWalkin(payload)
-      dbg.current(`result ← ${JSON.stringify(result)}`)
 
       if (!result.success) {
         setError(result.error ?? 'Something went wrong')
@@ -125,9 +119,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
     if (!walkinId) return
     setIsSubmitting(true)
     try {
-      dbg.current(`checkIn → ${walkinId}`)
       const result = await checkInWalkin(walkinId)
-      dbg.current(`checkIn ← ${JSON.stringify(result)}`)
       if (result.success) {
         setScreen('checkedIn')
       } else {
@@ -148,9 +140,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
     setIsSubmitting(true)
     setError(null)
     try {
-      dbg.current(`lookup → phone=${phone} shopId=${shopId}`)
       const result = await lookupByPhone(phone, shopId)
-      dbg.current(`lookup ← ${JSON.stringify(result)}`)
       if (result.found && result.walkin) {
         setWalkinId(result.walkin.id)
         setDisplayName(result.walkin.displayName)
@@ -374,22 +364,6 @@ export function KioskForm({ shopId }: KioskFormProps) {
         {error && (
           <p className="text-sm text-red-600 text-center">{error}</p>
         )}
-
-        {/* TEMP debug panel — remove in final commit */}
-        {debugVisible && (
-          <div className="bg-zinc-900 text-green-400 font-mono text-xs rounded p-2 space-y-0.5 border border-green-600/40">
-            <p className="text-green-300 font-semibold">DEBUG</p>
-            <p>shopId: {shopId ?? '(none — using fallback)'}</p>
-            {debugLog.map((line, i) => <p key={i}>{line}</p>)}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => setDebugVisible((v) => !v)}
-          className="text-[10px] text-secondary-300 underline"
-        >
-          {debugVisible ? 'hide debug' : 'debug'}
-        </button>
 
         <Button
           type="submit"
