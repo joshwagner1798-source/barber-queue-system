@@ -9,21 +9,6 @@ import { NewYorkClock } from '@/components/tv/NewYorkClock'
 import { FullscreenButton } from './FullscreenButton'
 import { useMotionEnabled } from '@/hooks/useMotionEnabled'
 
-// ── Card animation variants ──────────────────────────────────────────────────
-// TV-friendly: y=16 is visible at 8–15 ft distance, stagger 0.06s per card
-const cardVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, delay: i * 0.06, ease: 'easeOut' as const },
-  }),
-  exit: {
-    opacity: 0,
-    y: -8,
-    transition: { duration: 0.18, ease: 'easeIn' as const },
-  },
-}
 
 // ---------------------------------------------------------------------------
 // Types — same shape as /api/tv response (display-safe)
@@ -275,12 +260,11 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
               return motionEnabled ? (
                 <motion.div
                   key={b.id}
-                  custom={i}
                   layout="position"
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
+                  initial={{ opacity: 0, y: 48, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.96 }}
+                  transition={{ duration: 0.45, delay: i * 0.07, ease: 'easeOut' }}
                   className="h-full min-h-0"
                 >
                   {card}
