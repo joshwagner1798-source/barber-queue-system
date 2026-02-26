@@ -142,8 +142,21 @@ export class AcuityProvider implements CalendarProvider {
     // Filter to dates >= today
     const futureDates = dates.filter((d) => d.date >= todayNy)
 
-    // If today is available, barber is working today
+    // If today is available, check whether the barber's schedule has actually opened yet.
+    // Acuity lists today as available when it has *any* open slots — including future ones.
+    // Fetch the actual times so we can tell the difference between "started at 9am" and
+    // "starts at 5pm": the former should return null (working now), the latter should
+    // return the first slot time so the TV shows "Off until 5 PM".
     if (futureDates.length > 0 && futureDates[0].date === todayNy) {
+      const todayTimes = await fetchAvailabilityTimes(calId, apptTypeId, todayNy)
+      if (todayTimes.length > 0) {
+        const firstSlot = new Date(todayTimes[0].time)
+        if (firstSlot > new Date()) {
+          // Schedule hasn't opened yet — barber is off until this slot
+          return firstSlot.toISOString()
+        }
+      }
+      // First slot already started (or no times returned) → barber is working now
       return null
     }
 
