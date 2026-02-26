@@ -40,8 +40,8 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
         ))}
       </nav>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-hidden">
+      {/* Tab content — overflow-visible so layout animations are not clipped */}
+      <div className="flex-1">
         {activeTab === 'tv' && (
           <FloorDisplay shopId={shopId} backgroundUrl={backgroundUrl} />
         )}

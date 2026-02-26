@@ -16,6 +16,8 @@ export function useMotionEnabled(): boolean {
     const params = new URLSearchParams(window.location.search)
 
     function evaluate() {
+      // ?motion=on forces animations on (overrides prefers-reduced-motion)
+      if (params.get('motion') === 'on') { setEnabled(true); return }
       setEnabled(!mq.matches && params.get('motion') !== 'off')
     }
 
