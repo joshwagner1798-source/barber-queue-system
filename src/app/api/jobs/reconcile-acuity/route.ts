@@ -298,15 +298,23 @@ export async function GET(request: NextRequest) {
           .sort((a, b) => a.dt.getTime() - b.dt.getTime())[0]
 
         if (firstFutureAppt) {
-          if (firstFutureAppt.date === todayNy) {
-            // Has appointments today (fully booked, no open slots) → still working today
-            offUntilAt = null
-            console.log(`[AVAIL] ${barberName}: fully booked today → overriding to working today`)
-          } else if (firstFutureAppt.dt.getTime() < new Date(offUntilAt).getTime()) {
-            // First appointment is earlier than first open slot → use it
-            offUntilAt = firstFutureAppt.dt.toISOString()
-            console.log(`[AVAIL] ${barberName}: first appt on ${firstFutureAppt.date} is before open slot → off_until_at=${offUntilAt}`)
+          const offUntilDate = new Date(offUntilAt)
+          if (firstFutureAppt.dt < offUntilDate) {
+            // The barber's earliest appointment starts before the first open booking slot.
+            // Compare by datetime (not just date) — an appointment tonight at 5:30pm should
+            // not mark a barber as "working now" at 2pm.
+            const now = new Date()
+            if (firstFutureAppt.dt <= now) {
+              // Appointment already started → barber has been working since then
+              offUntilAt = null
+              console.log(`[AVAIL] ${barberName}: existing appt already started → overriding to working now`)
+            } else {
+              // Appointment starts in the future but before the first open slot → use it
+              offUntilAt = firstFutureAppt.dt.toISOString()
+              console.log(`[AVAIL] ${barberName}: first appt on ${firstFutureAppt.date} starts before open slot → off_until_at=${offUntilAt}`)
+            }
           }
+          // If appointment starts after off_until_at, no change — keep existing value
         }
       }
 
