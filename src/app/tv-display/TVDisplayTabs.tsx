@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { FloorDisplay } from './FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
-import { ShareLinksPanel } from '@/app/dashboard/ShareLinksPanel'
 
-type Tab = 'tv' | 'kiosk' | 'settings'
+// Note: Owner Settings intentionally NOT shown here — this page is public
+// (no auth). Real Owner Settings live at /dashboard → Owner Settings tab.
+type Tab = 'tv' | 'kiosk'
 
 interface Props {
   shopId: string
@@ -15,7 +16,6 @@ interface Props {
 const TABS: { id: Tab; label: string }[] = [
   { id: 'tv', label: 'TV Display' },
   { id: 'kiosk', label: 'Kiosk' },
-  { id: 'settings', label: 'Owner Settings' },
 ]
 
 export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
@@ -63,11 +63,6 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
           </div>
         )}
 
-        {activeTab === 'settings' && (
-          <div className="flex flex-col gap-6 p-6 max-w-2xl">
-            {shopId && <ShareLinksPanel shopId={shopId} shopSlug={null} />}
-          </div>
-        )}
       </div>
     </div>
   )
