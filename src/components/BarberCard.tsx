@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useMotionEnabled } from '@/hooks/useMotionEnabled'
 
 const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
@@ -84,6 +86,7 @@ export function BarberCard({
   className,
   imageClassName,
 }: Props) {
+  const motionEnabled = useMotionEnabled()
   const shortName = `${firstName} ${lastName.charAt(0)}.`
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.OFF
 
@@ -115,18 +118,42 @@ export function BarberCard({
     >
       {/* ── Photo section (overflow-hidden confined here only) ── */}
       <div className="relative overflow-hidden rounded-t-xl flex-1 min-h-0">
-        {/* Per-card status glow */}
+        {/* Per-card status glow — slow pulse (2.5s, opacity 1→0.65→1) for TV readability */}
         {status === 'AVAILABLE' && (
-          <div className="absolute inset-0 bg-emerald-500/20 animate-pulse pointer-events-none z-0" />
+          motionEnabled ? (
+            <motion.div
+              className="absolute inset-0 bg-emerald-500/20 pointer-events-none z-0"
+              animate={{ opacity: [1, 0.65, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-emerald-500/20 pointer-events-none z-0" />
+          )
         )}
         {status === 'IN_CHAIR' && (
-          <div className="absolute inset-0 bg-amber-500/20 animate-pulse pointer-events-none z-0" />
+          motionEnabled ? (
+            <motion.div
+              className="absolute inset-0 bg-amber-500/20 pointer-events-none z-0"
+              animate={{ opacity: [1, 0.65, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-amber-500/20 pointer-events-none z-0" />
+          )
         )}
         {status === 'ON_BREAK' && (
           <div className="absolute inset-0 bg-blue-500/15 pointer-events-none z-0" />
         )}
         {status === 'BLOCKED' && (
-          <div className="absolute inset-0 bg-red-600/30 animate-pulse pointer-events-none z-0" />
+          motionEnabled ? (
+            <motion.div
+              className="absolute inset-0 bg-red-600/30 pointer-events-none z-0"
+              animate={{ opacity: [1, 0.55, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-red-600/30 pointer-events-none z-0" />
+          )
         )}
 
         {/* Photo */}
@@ -147,11 +174,26 @@ export function BarberCard({
         {/* Bottom gradient */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
 
-        {/* Status badge — top-right, inside photo area */}
+        {/* Status badge — crossfades when status changes (TV-visible scale) */}
         <div className="absolute top-2 right-2 z-10">
-          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}>
-            {cfg.label}
-          </span>
+          {motionEnabled ? (
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={cfg.label}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.22 }}
+                className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}
+              >
+                {cfg.label}
+              </motion.span>
+            </AnimatePresence>
+          ) : (
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${cfg.badge}`}>
+              {cfg.label}
+            </span>
+          )}
         </div>
       </div>
 
