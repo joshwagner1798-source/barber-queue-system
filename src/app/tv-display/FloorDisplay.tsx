@@ -7,6 +7,23 @@ import { WaitingList } from '@/app/tv/WaitingList'
 import { BarberCard } from '@/components/BarberCard'
 import { NewYorkClock } from '@/components/tv/NewYorkClock'
 import { FullscreenButton } from './FullscreenButton'
+import { useMotionEnabled } from '@/hooks/useMotionEnabled'
+
+// ── Card animation variants ──────────────────────────────────────────────────
+// TV-friendly: y=16 is visible at 8–15 ft distance, stagger 0.06s per card
+const cardVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.28, delay: i * 0.06, ease: 'easeOut' as const },
+  }),
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.18, ease: 'easeIn' as const },
+  },
+}
 
 // ---------------------------------------------------------------------------
 // Types — same shape as /api/tv response (display-safe)
@@ -74,6 +91,8 @@ interface Props {
 }
 
 export function FloorDisplay({ backgroundUrl, shopId }: Props) {
+  const motionEnabled = useMotionEnabled()
+
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins]   = useState<TVWalkin[]>([])
   const [barbers, setBarbers]   = useState<TVBarber[]>([])
@@ -179,8 +198,22 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] pointer-events-none" />
 
+      {/* Subtle background gradient drift — very slow, TV-scale */}
+      {motionEnabled && (
+        <motion.div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{
+            background:
+              'radial-gradient(ellipse 120% 80% at 35% 45%, rgba(255,255,255,0.025) 0%, transparent 55%)',
+          }}
+          animate={{ x: [0, 40, -25, 10, 0], y: [0, -25, 18, -10, 0] }}
+          transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      )}
+
       {/* ── Main area ──────────────────────────────────────────────────── */}
-      <div className="relative flex-1 flex flex-col p-6 min-h-0 z-10 overflow-hidden">
+      {/* overflow-visible: outer h-screen overflow-hidden already clips; removing here prevents layout animation clipping */}
+      <div className="relative flex-1 flex flex-col p-6 min-h-0 z-10">
         <header className="mb-3 flex-shrink-0 relative flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white drop-shadow-lg">Sharper Image</h1>
@@ -205,8 +238,9 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
             gridTemplateRows: '1fr',
           }}
         >
-          <AnimatePresence mode="popLayout" initial={false}>
-            {sortedBarbers.map((b) => {
+          {/* AnimatePresence always wraps — plain <div> children are no-ops when motion off */}
+          <AnimatePresence mode="popLayout">
+            {sortedBarbers.map((b, i) => {
               const bs = statuses.find((s) => s.barber_id === b.id)
 
               // Derive card status.
@@ -222,30 +256,39 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                 b.status === 'FREE'                                        ? 'AVAILABLE' :
                 'AVAILABLE'
 
-              return (
+              const card = (
+                <BarberCard
+                  firstName={b.first_name}
+                  lastName={b.last_name}
+                  avatarUrl={b.avatar_url}
+                  status={cardStatus}
+                  nextApptAt={b.next_appt_at}
+                  nextClientName={b.next_client_name}
+                  busyReason={b.busy_reason}
+                  blockedNoteShort={b.blocked_note}
+                  freeAt={b.free_at}
+                  offLabel={b.off_label}
+                  className="h-full"
+                />
+              )
+
+              return motionEnabled ? (
                 <motion.div
                   key={b.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+                  custom={i}
+                  layout="position"
+                  variants={cardVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
                   className="h-full min-h-0"
                 >
-                  <BarberCard
-                    firstName={b.first_name}
-                    lastName={b.last_name}
-                    avatarUrl={b.avatar_url}
-                    status={cardStatus}
-                    nextApptAt={b.next_appt_at}
-                    nextClientName={b.next_client_name}
-                    busyReason={b.busy_reason}
-                    blockedNoteShort={b.blocked_note}
-                    freeAt={b.free_at}
-                    offLabel={b.off_label}
-                    className="h-full"
-                  />
+                  {card}
                 </motion.div>
+              ) : (
+                <div key={b.id} className="h-full min-h-0">
+                  {card}
+                </div>
               )
             })}
           </AnimatePresence>
