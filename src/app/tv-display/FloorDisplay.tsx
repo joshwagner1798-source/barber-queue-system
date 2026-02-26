@@ -168,15 +168,10 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
   // Number of columns = exact barber count so nothing ever wraps
   const colCount = Math.max(sortedBarbers.length, 1)
 
-  // ── TEMP debug overlay (remove in final commit) ────────────────────────────
-  const [debugVisible, setDebugVisible] = useState(false)
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
       className="h-screen flex relative overflow-hidden"
-      // TEMP: tap anywhere 3× to toggle debug overlay
-      onClick={() => setDebugVisible((v) => !v)}
       style={{
         backgroundImage: `url('${bgImage}')`,
         backgroundSize: 'cover',
@@ -188,16 +183,6 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] pointer-events-none" />
 
-      {/* TEMP debug overlay — tap display to toggle; remove in final commit */}
-      {debugVisible && (
-        <div className="absolute top-2 left-2 z-50 bg-black/80 text-green-400 font-mono text-xs rounded p-3 pointer-events-none space-y-0.5 border border-green-500/40">
-          <p>route: /sharperimage/tv → FloorDisplay</p>
-          <p>motionEnabled: {motionEnabled ? '✅ true' : '❌ false'}</p>
-          <p>shopId: {shopId ?? '(none)'}</p>
-          <p>barbers: {barbers.length}</p>
-          <p>walkins: {walkins.length}</p>
-        </div>
-      )}
 
       {/* Subtle background gradient drift — very slow, TV-scale */}
       {motionEnabled && (
