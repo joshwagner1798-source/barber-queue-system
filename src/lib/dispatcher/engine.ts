@@ -131,7 +131,7 @@ export async function runDispatcher(
   // -----------------------------------------------------------------------
   const { data: barbers, error: barbersErr } = await admin
     .from('users')
-    .select('id, first_name, last_name, acuity_calendar_id')
+    .select('id, first_name, last_name, acuity_calendar_id, walkin_enabled')
     .eq('shop_id', shopId)
     .eq('role', 'barber')
     .eq('is_active', true)
@@ -142,7 +142,7 @@ export async function runDispatcher(
     return result
   }
 
-  type BarberRow = { id: string; first_name: string; last_name: string; acuity_calendar_id: string }
+  type BarberRow = { id: string; first_name: string; last_name: string; acuity_calendar_id: string; walkin_enabled: boolean }
   const barberRows = (barbers ?? []) as unknown as BarberRow[]
 
   if (barberRows.length === 0) return result
@@ -294,8 +294,34 @@ export async function runDispatcher(
 
   // -----------------------------------------------------------------------
   // 6. Auto-assign walk-ins to FREE barbers
+  //    Only barbers with walkin_enabled=true are eligible for walk-in assignment.
+  //    Appointment-only barbers (e.g. Tyrik, Will) appear on TV but are never
+  //    auto-assigned here.
+  //
+  //    Also skip any walk-in that already has a pending SMS offer — the offer
+  //    rotation is handling it and the barber is expected to reply YES/NO.
   // -----------------------------------------------------------------------
-  const freeBarbers = syncResults.filter((sr) => sr.status === 'FREE')
+
+  // Build walkin_enabled lookup (default true if column missing — backward compat)
+  const walkinEnabledSet = new Set(
+    barberRows.filter((b) => b.walkin_enabled !== false).map((b) => b.id),
+  )
+
+  // Fetch walk-in IDs that have a pending SMS offer (do not double-assign these)
+  const { data: pendingOffers } = await admin
+    .from('walkin_assignment_attempts')
+    .select('walkin_id')
+    .eq('shop_id', shopId)
+    .eq('status', 'pending')
+
+  type PendingOfferRow = { walkin_id: string }
+  const pendingWalkinIds = new Set(
+    (pendingOffers ?? []).map((p) => (p as unknown as PendingOfferRow).walkin_id),
+  )
+
+  const freeBarbers = syncResults.filter(
+    (sr) => sr.status === 'FREE' && walkinEnabledSet.has(sr.barber_id),
+  )
 
   for (const fb of freeBarbers) {
     // Check if this barber already has an active CALLED or IN_SERVICE walkin
@@ -342,6 +368,9 @@ export async function runDispatcher(
     }
 
     if (!target) continue // no one to assign
+
+    // Skip walk-ins that are already in the SMS offer rotation
+    if (pendingWalkinIds.has(target.id)) continue
 
     // Optimistic lock: only update if still WAITING
     const { data: updated, error: assignErr } = await admin

@@ -56,7 +56,9 @@ export interface ShopAvailability {
 // Timezone helpers (no external deps — uses Intl API)
 // ---------------------------------------------------------------------------
 
-export function getShopLocalTime(timezone: string) {
+export function getShopLocalTime(timezone: string | null | undefined) {
+  // Default to America/New_York if timezone is missing from the shop record
+  timezone = timezone || 'America/New_York'
   const now = new Date()
 
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -191,7 +193,7 @@ async function fetchAvailabilityData(
 // Schedule resolution
 // ---------------------------------------------------------------------------
 
-function getBarberHoursForDay(
+export function getBarberHoursForDay(
   barberId: string,
   dayOfWeek: number,
   allHours: BusinessHours[],

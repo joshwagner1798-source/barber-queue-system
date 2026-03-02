@@ -105,6 +105,8 @@ async function fetchProjectionData(
     autoAssignEventsResult,
     servicesResult,
     barberSvcResult,
+    walkinBarbersResult,
+    barberStatusResult,
   ] = await Promise.all([
     // CALLED walk-ins
     supabase
@@ -143,7 +145,34 @@ async function fetchProjectionData(
       .eq('is_active', true),
 
     supabase.from('barber_services').select('*'),
+
+    // walkin_enabled barber IDs — for wait time formula filter
+    supabase
+      .from('users')
+      .select('id')
+      .eq('shop_id', shopId)
+      .eq('role', 'barber')
+      .eq('is_active', true)
+      .eq('walkin_enabled', true),
+
+    // Acuity-synced free_at — supplemental estimate for appt-based shops
+    supabase
+      .from('barber_status')
+      .select('barber_id, free_at')
+      .eq('shop_id', shopId),
   ])
+
+  type IdRow = { id: string }
+  type StatusRow = { barber_id: string; free_at: string | null }
+
+  const walkinEnabledIds = new Set(
+    (walkinBarbersResult.data ?? []).map((r) => (r as unknown as IdRow).id),
+  )
+
+  const acuityFreeAt = new Map<string, string | null>()
+  for (const s of (barberStatusResult.data ?? []) as unknown as StatusRow[]) {
+    acuityFreeAt.set(s.barber_id, s.free_at)
+  }
 
   return {
     called: (calledResult.data ?? []) as unknown as Walkin[],
@@ -152,6 +181,8 @@ async function fetchProjectionData(
     autoAssignEvents: (autoAssignEventsResult.data ?? []) as unknown as WalkinEvent[],
     services: (servicesResult.data ?? []) as unknown as Service[],
     barberServices: (barberSvcResult.data ?? []) as unknown as BarberServiceRow[],
+    walkinEnabledIds,
+    acuityFreeAt,
   }
 }
 
@@ -281,32 +312,9 @@ function buildSnapshot(
         )
       : 0
 
-  // Find next available barber from availability data
-  const availableBarbers = availability.barbers.filter((b) => b.available)
-  const nextBarber =
-    availableBarbers.length > 0
-      ? {
-          barber_id: availableBarbers[0].barber_id,
-          barber_name: availableBarbers[0].barber_name,
-          free_at: availability.calculated_at,
-        }
-      : (() => {
-          // Find the soonest-to-be-free barber
-          const busy = availability.barbers
-            .filter((b) => b.estimated_free_at)
-            .sort(
-              (a, b) =>
-                new Date(a.estimated_free_at!).getTime() -
-                new Date(b.estimated_free_at!).getTime(),
-            )
-          return busy.length > 0
-            ? {
-                barber_id: busy[0].barber_id,
-                barber_name: busy[0].barber_name,
-                free_at: busy[0].estimated_free_at!,
-              }
-            : null
-        })()
+  // Use next_available_barber from the queue estimate — it already accounts for
+  // walkin_enabled filter and acuity data, so only walkin-eligible barbers appear.
+  const nextBarber = queueEstimate.next_available_barber
 
   return {
     shop_open: availability.shop_open,
@@ -390,12 +398,14 @@ export async function refreshShopProjection(
 
   const waitingQueue = (walkinsResult.data ?? []) as unknown as Walkin[]
 
-  // 3. Run wait time simulation using the pure function (no duplicate DB call)
+  // 3. Run wait time estimation using the pure function (no duplicate DB call)
   const queueEstimate = estimateQueue(
     availability,
     waitingQueue,
     projData.services,
     projData.barberServices,
+    projData.walkinEnabledIds,
+    projData.acuityFreeAt,
   )
 
   // 4. Build barber name lookup for in-service enrichment

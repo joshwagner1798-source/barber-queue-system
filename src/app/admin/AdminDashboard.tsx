@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { BarbersBar } from './BarbersBar'
 import { LiveQueuePanel } from './LiveQueuePanel'
 import { EventLogPanel } from './EventLogPanel'
-import { BarberPhotosPanel } from './BarberPhotosPanel'
+import { BarberManagementPanel } from './BarberManagementPanel'
 import { DisplayBackgroundsPanel } from './DisplayBackgroundsPanel'
+import { UISettingsPanel } from './UISettingsPanel'
 import type { BarberInfo, QueueEntry, EventEntry, BarberManualState } from '@/types/dashboard'
 
 interface RawWalkin {
@@ -173,11 +174,14 @@ export function AdminDashboard({ currentUserName, shopId, initialWalkins, initia
         <EventLogPanel events={mappedEvents} />
       </div>
 
-      {/* Photo management */}
-      <BarberPhotosPanel />
+      {/* Barber management (photo, name, active/walkin toggles) */}
+      <BarberManagementPanel shopId={shopId} />
 
       {/* Display background customization */}
       <DisplayBackgroundsPanel />
+
+      {/* TV display UI settings */}
+      <UISettingsPanel shopId={shopId} />
     </div>
   )
 }

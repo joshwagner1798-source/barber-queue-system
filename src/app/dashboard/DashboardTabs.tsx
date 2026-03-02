@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { FloorDisplay } from '@/app/tv-display/FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
 import { AdminDashboard } from '@/app/admin/AdminDashboard'
 import { ShareLinksPanel } from './ShareLinksPanel'
+import { PinGate } from './PinGate'
 
 type Tab = 'tv' | 'kiosk' | 'settings' | 'links'
 
@@ -48,25 +49,9 @@ export function DashboardTabs({
   initialEvents,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('tv')
-  const [isPending, startTransition] = useTransition()
 
   function handleTabClick(id: Tab) {
-    if (id !== 'settings') {
-      setActiveTab(id)
-      return
-    }
-    // Owner Settings requires a server-side session (cookie-based auth).
-    // The browser Supabase client reads localStorage and won't see it, so
-    // we check via the debug API which reads the same cookie the server uses.
-    startTransition(async () => {
-      const res = await fetch('/api/auth/debug')
-      const { session } = await res.json()
-      if (!session) {
-        window.location.assign('/login')
-        return
-      }
-      setActiveTab('settings')
-    })
+    setActiveTab(id)
   }
 
   return (
@@ -77,12 +62,11 @@ export function DashboardTabs({
           <button
             key={t.id}
             onClick={() => handleTabClick(t.id)}
-            disabled={isPending && t.id === 'settings'}
             className={`px-6 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
               activeTab === t.id
                 ? 'text-white border-primary-400'
                 : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
-            } disabled:opacity-50`}
+            }`}
           >
             {t.label}
           </button>
@@ -111,16 +95,18 @@ export function DashboardTabs({
         )}
 
         {activeTab === 'settings' && (
-          <div className="flex flex-col gap-6 p-6 overflow-y-auto">
-            <AdminDashboard
-              currentUserName={currentUserName}
-              shopId={shopId}
-              initialWalkins={initialWalkins}
-              initialBarbers={initialBarbers}
-              initialStates={initialStates}
-              initialEvents={initialEvents}
-            />
-          </div>
+          <PinGate>
+            <div className="flex flex-col gap-6 p-6 overflow-y-auto">
+              <AdminDashboard
+                currentUserName={currentUserName}
+                shopId={shopId}
+                initialWalkins={initialWalkins}
+                initialBarbers={initialBarbers}
+                initialStates={initialStates}
+                initialEvents={initialEvents}
+              />
+            </div>
+          </PinGate>
         )}
 
         {activeTab === 'links' && (

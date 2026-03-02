@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getNextQueuePosition } from '@/lib/walkin/helpers'
 import { appendEvent, WALKIN_ADDED } from '@/lib/walkin/events'
 import { refreshShopProjection } from '@/lib/walkin/shop_projector'
+import { initiateWalkinOffer } from '@/lib/walkin/walkin_offer'
+import { getEligibleWalkinBarbers } from '@/lib/walkin/eligible_barbers'
 
 export async function GET() {
   const supabase = await createClient()
@@ -62,6 +65,28 @@ export async function POST(request: Request) {
     })
 
     refreshShopProjection(supabase, shop_id).catch(() => {})
+
+    // Trigger SMS offer rotation using admin client (bypasses RLS on attempts table)
+    const adminForOffer = createAdminClient()
+    initiateWalkinOffer(adminForOffer, shop_id, data.id).catch(() => {})
+
+    // Debug: log eligibility snapshot so we can diagnose "no ready barbers" reports
+    getEligibleWalkinBarbers(adminForOffer, shop_id).then(({ eligible, rejected }) => {
+      const tag = `[WALKIN_CREATED shop=${shop_id} walkin_id=${data.id}]`
+      const eligibleLog = eligible.length
+        ? eligible.map((b) => `${b.name}(ready=${b.readyMinutes}min)`).join(', ')
+        : 'NONE'
+      const rejectedLog = rejected
+        .map((b) => `${b.name}[${b.reasons.join('; ')}]`)
+        .join(' | ')
+      console.log(`${tag} eligible_count=${eligible.length}: ${eligibleLog}`)
+      if (rejected.length) {
+        console.log(`${tag} rejected_count=${rejected.length}: ${rejectedLog}`)
+      }
+      if (eligible.length === 0) {
+        console.warn(`${tag} WARNING: No eligible walk-in barbers found — customer will see no ready barbers`)
+      }
+    }).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })
   } catch (err) {

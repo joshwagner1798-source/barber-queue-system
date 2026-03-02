@@ -80,6 +80,7 @@ export type Database = {
           email_notifications: boolean
           sms_notifications: boolean
           acuity_calendar_id: string | null
+          walkin_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -100,6 +101,7 @@ export type Database = {
           email_notifications?: boolean
           sms_notifications?: boolean
           acuity_calendar_id?: string | null
+          walkin_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -120,6 +122,7 @@ export type Database = {
           email_notifications?: boolean
           sms_notifications?: boolean
           acuity_calendar_id?: string | null
+          walkin_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -626,6 +629,41 @@ export type Database = {
           updated_at?: string
         }
       }
+      walkin_assignment_attempts: {
+        Row: {
+          id: string
+          shop_id: string
+          walkin_id: string
+          barber_id: string
+          status: 'pending' | 'accepted' | 'declined' | 'timeout' | 'canceled'
+          sent_at: string
+          responded_at: string | null
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shop_id: string
+          walkin_id: string
+          barber_id: string
+          status?: 'pending' | 'accepted' | 'declined' | 'timeout' | 'canceled'
+          sent_at?: string
+          responded_at?: string | null
+          expires_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shop_id?: string
+          walkin_id?: string
+          barber_id?: string
+          status?: 'pending' | 'accepted' | 'declined' | 'timeout' | 'canceled'
+          sent_at?: string
+          responded_at?: string | null
+          expires_at?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -701,3 +739,17 @@ export type ClientInsert = Database['public']['Tables']['clients']['Insert']
 export type BarberStatusRow = Database['public']['Tables']['barber_status']['Row']
 export type BarberStatusInsert = Database['public']['Tables']['barber_status']['Insert']
 export type BarberStatusUpdate = Database['public']['Tables']['barber_status']['Update']
+
+// Walk-in SMS offer types (migration 00017)
+export type WalkinAssignmentAttempt = Database['public']['Tables']['walkin_assignment_attempts']['Row']
+export type WalkinAssignmentAttemptInsert = Database['public']['Tables']['walkin_assignment_attempts']['Insert']
+export type WalkinAssignmentAttemptUpdate = Database['public']['Tables']['walkin_assignment_attempts']['Update']
+
+// Owner settings types (migration 00018)
+export type OwnerSettings = {
+  shop_id: string
+  layout: 'compact' | 'large'
+  theme: 'dark' | 'light'
+  font_size: 'sm' | 'md' | 'lg'
+  updated_at: string
+}

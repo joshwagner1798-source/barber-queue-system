@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     admin
       .from('users')
-      .select('id, first_name, last_name, avatar_url, display_order')
+      .select('id, first_name, last_name, avatar_url, display_order, walkin_enabled')
       .eq('shop_id', shopId)
       .eq('role', 'barber')
       .eq('is_active', true)
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
   type BlockRow = { barber_id: string; start_at: string; end_at: string; note_short: string | null }
   type ApptRow  = { barber_id: string; end_at: string }
   type NextRow  = { barber_id: string; start_at: string; client_name: string | null }
-  type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null; display_order: number }
+  type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null; display_order: number; walkin_enabled: boolean | null }
   type ConnRow  = { barber_id: string; off_until_at: string | null }
 
   const currentBlockMap = new Map<string, BlockRow>()
@@ -179,6 +179,8 @@ export async function GET(request: NextRequest) {
       next_client_name,
       off_label,
       off_until_at,
+      // walkin_enabled drives eligibility in computeWaitSecs + anyFree on the TV
+      walkin_eligible: barber.walkin_enabled !== false,
     }
   })
 
