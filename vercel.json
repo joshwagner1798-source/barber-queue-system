@@ -3,6 +3,10 @@
     {
       "path": "/api/jobs/reconcile-acuity",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/jobs/walkin-timeouts",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

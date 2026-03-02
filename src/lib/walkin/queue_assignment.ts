@@ -193,6 +193,19 @@ export async function processBarberAvailable(
   barberId: string,
   actorUserId: string | null,
 ): Promise<AutoAssignmentResult> {
+  // 0. Respect walkin_enabled flag — appointment-only barbers (e.g. Tyrik, Will)
+  //    must never be auto-assigned walk-ins even when they mark themselves AVAILABLE.
+  const { data: barberUser } = await supabase
+    .from('users')
+    .select('walkin_enabled')
+    .eq('id', barberId)
+    .maybeSingle()
+
+  type BarberUserRow = { walkin_enabled: boolean }
+  if ((barberUser as unknown as BarberUserRow | null)?.walkin_enabled === false) {
+    return { assigned: false, reason: 'Barber is not eligible for walk-in assignments (walkin_enabled=false)' }
+  }
+
   // 1. Get current availability (verifies barber is truly AVAILABLE)
   const availability = await getShopAvailability(supabase, shopId)
   const barber = availability.barbers.find((b) => b.barber_id === barberId)

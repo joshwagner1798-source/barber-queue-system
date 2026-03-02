@@ -4,6 +4,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNextQueuePosition } from '@/lib/walkin/helpers'
+import { initiateWalkinOffer } from '@/lib/walkin/walkin_offer'
+import { getEligibleWalkinBarbers } from '@/lib/walkin/eligible_barbers'
 
 export async function POST(request: Request) {
   try {
@@ -141,6 +143,27 @@ export async function POST(request: Request) {
     }
 
     const w = walkin as unknown as { id: string; position: number; display_name: string }
+
+    // Trigger SMS offer rotation — fire-and-forget (never blocks the response)
+    initiateWalkinOffer(adminClient, shopId, w.id).catch(() => {})
+
+    // Debug: log eligibility snapshot so we can diagnose "no ready barbers" reports
+    getEligibleWalkinBarbers(adminClient, shopId).then(({ eligible, rejected }) => {
+      const tag = `[WALKIN_CREATED shop=${shopId} walkin_id=${w.id}]`
+      const eligibleLog = eligible.length
+        ? eligible.map((b) => `${b.name}(ready=${b.readyMinutes}min)`).join(', ')
+        : 'NONE'
+      const rejectedLog = rejected
+        .map((b) => `${b.name}[${b.reasons.join('; ')}]`)
+        .join(' | ')
+      console.log(`${tag} eligible_count=${eligible.length}: ${eligibleLog}`)
+      if (rejected.length) {
+        console.log(`${tag} rejected_count=${rejected.length}: ${rejectedLog}`)
+      }
+      if (eligible.length === 0) {
+        console.warn(`${tag} WARNING: No eligible walk-in barbers found — customer will see no ready barbers`)
+      }
+    }).catch(() => {})
 
     return NextResponse.json(
       { success: true, walkinId: w.id, displayName: w.display_name ?? displayName, position: w.position },
