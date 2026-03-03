@@ -1,3 +1,11 @@
-export default function TVDisplayLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+import type { ReactNode } from "react";
+import { TVDisplayTabs } from "./TVDisplayTabs";
+
+export default function Layout({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <TVDisplayTabs />
+      {children}
+    </>
+  );
 }
