@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { FloorDisplay } from './FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
-import { OwnerPanel } from '@/app/tv/OwnerPanel'
+import { OwnerPanel } from './OwnerPanel'
 
 type Tab = 'tv' | 'kiosk'
 
