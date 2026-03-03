@@ -1,16 +1,15 @@
 import { TVDisplayTabs } from '@/app/tv-display/TVDisplayTabs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export const metadata = {
-  title: 'ShopQueue | Live Barber Status',
-}
-
 export const dynamic = 'force-dynamic'
 
-const SHOP_ID = '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
+type Props = {
+  searchParams: Promise<{ shop_id?: string }>
+}
 
-export default async function Page() {
-  const shopId = SHOP_ID
+export default async function SharperImageTVPage({ searchParams }: Props) {
+  const params = await searchParams
+  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
 
   const admin = createAdminClient()
   const { data } = await admin
@@ -20,11 +19,13 @@ export default async function Page() {
     .maybeSingle()
 
   const bgUrl =
-    (data as { tv_background_url: string | null } | null)?.tv_background_url ?? undefined
+    (data as { tv_background_url: string | null } | null)?.tv_background_url ??
+    undefined
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <TVDisplayTabs shopId={shopId} backgroundUrl={bgUrl} />
     </main>
   )
+}
 }
