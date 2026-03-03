@@ -25,10 +25,13 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
   return (
     <div className="min-h-screen bg-secondary-950 flex flex-col">
       {/* Tab bar */}
-      <nav className="bg-secondary-800 border-b border-secondary-700 px-4 flex sticky top-0 z-10">
+      <nav className="bg-secondary-800 border-b border-secondary-700 px-4 flex sticky top-0 z-10 items-center gap-2">
+        <div className="text-white bg-red-600 px-3 py-1 font-bold">
+          OWNER TAB VERSION 1cf5188
+        </div>
+
         {TABS.map((t) => {
-          const active =
-            t.id === 'owner' ? ownerOpen : activeTab === t.id
+          const active = t.id === 'owner' ? ownerOpen : activeTab === t.id
 
           return (
             <button
