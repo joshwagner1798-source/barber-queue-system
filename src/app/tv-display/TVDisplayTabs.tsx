@@ -5,58 +5,57 @@ import { FloorDisplay } from './FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
 import { OwnerPanel } from '@/app/tv/OwnerPanel'
 
-type Tab = 'tv' | 'kiosk' | 'owner'
+type Tab = 'tv' | 'kiosk'
 
 interface Props {
   shopId: string
   backgroundUrl?: string
 }
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'tv', label: 'TV Display' },
-  { id: 'kiosk', label: 'Kiosk' },
-  { id: 'owner', label: 'Owner' },
-]
-
 export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('tv')
   const [ownerOpen, setOwnerOpen] = useState(false)
 
+  const tabClass = (active: boolean) =>
+    `px-6 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+      active
+        ? 'text-white border-primary-400'
+        : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
+    }`
+
   return (
     <div className="min-h-screen bg-secondary-950 flex flex-col">
-      
-      {/* DEBUG: remove after confirming */}
-      <div className="bg-yellow-400 text-black p-2 font-bold">
-        TVDisplayTabs LOADED
-      </div>
 
       {/* Tab bar */}
       <nav className="bg-secondary-800 border-b border-secondary-700 px-4 flex sticky top-0 z-10">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => {
-              if (t.id === 'owner') {
-                setOwnerOpen(true)
-              } else {
-                setActiveTab(t.id)
-              }
-            }}
-            className={`px-6 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
-              t.id === 'owner'
-                ? ownerOpen
-                  ? 'text-white border-primary-400'
-                  : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
-                : activeTab === t.id
-                  ? 'text-white border-primary-400'
-                  : 'text-secondary-400 border-transparent hover:text-secondary-200 hover:border-secondary-500'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        
+        {/* TV */}
+        <button
+          onClick={() => setActiveTab('tv')}
+          className={tabClass(activeTab === 'tv')}
+        >
+          TV Display
+        </button>
+
+        {/* Kiosk */}
+        <button
+          onClick={() => setActiveTab('kiosk')}
+          className={tabClass(activeTab === 'kiosk')}
+        >
+          Kiosk
+        </button>
+
+        {/* Owner */}
+        <button
+          onClick={() => setOwnerOpen(true)}
+          className={tabClass(ownerOpen)}
+        >
+          Owner
+        </button>
+
       </nav>
 
+      {/* Content */}
       <div className="flex-1">
         {activeTab === 'tv' && (
           <FloorDisplay shopId={shopId} backgroundUrl={backgroundUrl} />
@@ -80,7 +79,8 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
         )}
       </div>
 
+      {/* Owner modal */}
       <OwnerPanel open={ownerOpen} onClose={() => setOwnerOpen(false)} />
     </div>
   )
-} 
+}
