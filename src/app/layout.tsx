@@ -1,21 +1,11 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import { ReactNode } from 'react'
+import { TVDisplayTabs } from './TVDisplayTabs'
 
-export const metadata: Metadata = {
-  title: "Book Your Appointment | Barbershop",
-  description: "Schedule your next haircut online. Easy booking, great service.",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        {children}
-      </body>
-    </html>
-  );
+    <>
+      <TVDisplayTabs />
+      {children}
+    </>
+  )
 }
