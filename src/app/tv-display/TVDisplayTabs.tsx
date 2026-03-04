@@ -28,6 +28,7 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
 
       {/* Tab bar */}
       <nav className="bg-secondary-800 border-b border-secondary-700 px-4 flex sticky top-0 z-10">
+        <div className="bg-red-600 text-white font-bold px-3 py-1 mr-3 self-center rounded">OWNER TAB DEPLOY CHECK ✅</div>
         
         {/* TV */}
         <button
