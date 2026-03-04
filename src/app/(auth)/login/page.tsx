@@ -1,39 +1,34 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { loginAction } from './actions'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setIsLoading(true)
 
-    const supabase = createClient()
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    startTransition(async () => {
+      const result = await loginAction(email, password)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        // Full-page navigation instead of router.push: the App Router client
+        // cache can hold a stale RSC payload for /dashboard from before login
+        // (which encoded a redirect to /login). router.push would serve that
+        // stale payload, re-triggering the redirect. window.location bypasses
+        // the Router Cache entirely and issues a fresh HTTP GET with cookies.
+        window.location.assign('/dashboard')
+      }
     })
-
-    if (signInError) {
-      setError(signInError.message)
-      setIsLoading(false)
-      return
-    }
-
-    router.push('/')
-    router.refresh()
   }
 
   return (
@@ -94,7 +89,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full"
             size="lg"
-            isLoading={isLoading}
+            isLoading={isPending}
           >
             Sign in
           </Button>

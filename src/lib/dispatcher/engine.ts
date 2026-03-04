@@ -202,7 +202,7 @@ export async function runDispatcher(
   // -----------------------------------------------------------------------
   const { data: barbers, error: barbersErr } = await admin
     .from('users')
-    .select('id, first_name, last_name, acuity_calendar_id')
+    .select('id, first_name, last_name, acuity_calendar_id, walkin_enabled')
     .eq('shop_id', shopId)
     .eq('role', 'barber')
     .eq('is_active', true)
@@ -213,7 +213,7 @@ export async function runDispatcher(
     return result
   }
 
-  type BarberRow = { id: string; first_name: string; last_name: string; acuity_calendar_id: string }
+  type BarberRow = { id: string; first_name: string; last_name: string; acuity_calendar_id: string; walkin_enabled: boolean }
   const barberRows = (barbers ?? []) as unknown as BarberRow[]
 
   if (barberRows.length === 0) return result

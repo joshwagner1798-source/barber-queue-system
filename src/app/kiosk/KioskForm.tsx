@@ -6,13 +6,25 @@ import { Input } from '@/components/ui/Input'
 import { submitWalkin, checkInWalkin, lookupByPhone } from '@/lib/kiosk/actions'
 import type { KioskBarber } from '@/lib/kiosk/barbers'
 
-interface Props {
-  barbers: KioskBarber[]
-}
-
 type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
-export function KioskForm({ barbers }: Props) {
+interface KioskFormProps {
+  shopId?: string
+}
+
+export function KioskForm({ shopId }: KioskFormProps) {
+  const [barbers, setBarbers] = useState<KioskBarber[]>([])
+
+  useEffect(() => {
+    const url = shopId
+      ? `/api/kiosk/barbers?shop_id=${encodeURIComponent(shopId)}`
+      : '/api/kiosk/barbers'
+    fetch(url)
+      .then((r) => r.json())
+      .then((data: KioskBarber[]) => setBarbers(data))
+      .catch((err) => console.error('[KioskForm] failed to load barbers:', err))
+  }, [shopId])
+
   // Form state
   const [firstName, setFirstName] = useState('')
   const [lastInitial, setLastInitial] = useState('')
@@ -31,6 +43,7 @@ export function KioskForm({ barbers }: Props) {
   const [existingStatus, setExistingStatus] = useState<string | null>(null)
   const [walkinId, setWalkinId] = useState<string | null>(null)
   const [assignedBarberName, setAssignedBarberName] = useState<string | null>(null)
+
 
   // Auto-reset to form after 30s on non-form screens
   const resetToForm = useCallback(() => {
@@ -69,7 +82,7 @@ export function KioskForm({ barbers }: Props) {
     setIsSubmitting(true)
 
     try {
-      const result = await submitWalkin({
+      const payload = {
         firstName,
         lastInitial,
         phone,
@@ -127,7 +140,7 @@ export function KioskForm({ barbers }: Props) {
     setIsSubmitting(true)
     setError(null)
     try {
-      const result = await lookupByPhone(phone)
+      const result = await lookupByPhone(phone, shopId)
       if (result.found && result.walkin) {
         setWalkinId(result.walkin.id)
         setDisplayName(result.walkin.displayName)

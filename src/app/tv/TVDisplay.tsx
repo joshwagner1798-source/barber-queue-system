@@ -43,7 +43,11 @@ interface TVBarber {
 // Main TV Display component
 // ---------------------------------------------------------------------------
 
-export function TVDisplay() {
+interface TVDisplayProps {
+  shopId?: string
+}
+
+export function TVDisplay({ shopId }: TVDisplayProps) {
   const [statuses, setStatuses] = useState<TVBarberStatus[]>([])
   const [walkins, setWalkins] = useState<TVWalkin[]>([])
   const [barbers, setBarbers] = useState<TVBarber[]>([])

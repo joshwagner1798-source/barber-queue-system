@@ -1,8 +1,6 @@
-'use server'
-
-import { createAdminClient } from '@/lib/supabase/admin'
-
-const SHOP_ID = '00000000-0000-0000-0000-000000000001'
+// KioskBarber type shared between the API route and client components.
+// Data loading moved to /api/kiosk/barbers (GET) to avoid 'use server'
+// module context where process.env resolution is unreliable.
 
 export interface KioskBarber {
   id: string
