@@ -24,7 +24,14 @@ export default async function SharperImageTVPage({ searchParams }: Props) {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
+
+      {/* DEPLOY CHECK — if you don't see this red bar live, Vercel isn't deploying this repo */}
+      <div className="bg-red-600 text-white font-bold px-4 py-2 text-center">
+        DEPLOY CHECK: barber-queue-system main
+      </div>
+
       <TVDisplayTabs shopId={shopId} backgroundUrl={bgUrl} />
+
     </main>
   )
 }
