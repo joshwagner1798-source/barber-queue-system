@@ -82,7 +82,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
     setIsSubmitting(true)
 
     try {
-      const payload = {
+      const result = await submitWalkin({
         firstName,
         lastInitial,
         phone,

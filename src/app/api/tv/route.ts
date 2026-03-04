@@ -7,9 +7,7 @@ export const dynamic = 'force-dynamic'
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 
 /** TV live data — returns only display-safe data (no phone, no client_id). */
-export async function GET() {
-  const admin = createAdminClient()
-
+export async function GET(request: NextRequest) {
   const { shopId, error: shopErr } = requireShopId(request)
   if (shopErr) return NextResponse.json(shopErr, { status: 400 })
 
