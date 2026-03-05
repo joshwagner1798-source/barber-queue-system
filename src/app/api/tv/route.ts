@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
     // public_barbers view which may not exist or may lack required fields.
     admin
       .from('users')
-      .select('id, shop_id, first_name, last_name, avatar_url, display_order, is_active')
+      .select('id, shop_id, first_name, last_name')
+      .eq('shop_id', shopId)
       .eq('role', 'barber')
+      .eq('is_active', true)
       .order('display_order', { ascending: true }),
 
     // Currently-active blocks — BLOCKED overrides everything
@@ -97,9 +99,9 @@ export async function GET(request: NextRequest) {
       shop_id:          u.shop_id,
       first_name:       u.first_name,
       last_name:        u.last_name,
-      avatar_url:       u.avatar_url ?? null,
-      display_order:    u.display_order ?? 0,
-      walkin_eligible:  (u as Record<string, unknown>).walkin_enabled !== false,
+      avatar_url:       null,
+      display_order:    0,
+      walkin_eligible:  true,
       status:           (bs?.status as string) ?? 'FREE',
       free_at:          bs?.free_at ?? null,
       busy_reason:      isBlocked ? 'blocked' : hasAppt ? 'appointment' : null,
