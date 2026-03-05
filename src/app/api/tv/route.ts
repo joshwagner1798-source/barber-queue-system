@@ -34,8 +34,7 @@ export async function GET(request: NextRequest) {
     // public_barbers view which may not exist or may lack required fields.
     admin
       .from('users')
-      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled, is_active')
-      .eq('shop_id', shopId)
+      .select('id, shop_id, first_name, last_name, avatar_url, display_order, is_active')
       .eq('role', 'barber')
       .order('display_order', { ascending: true }),
 
