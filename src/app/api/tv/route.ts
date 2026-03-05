@@ -4,8 +4,6 @@ import { requireShopId, checkRequiredEnv } from '@/lib/shop-resolver'
 
 export const dynamic = 'force-dynamic'
 
-const SHOP_ID = '00000000-0000-0000-0000-000000000001'
-
 /** TV live data — returns only display-safe data (no phone, no client_id). */
 export async function GET(request: NextRequest) {
   const { shopId, error: shopErr } = requireShopId(request)
@@ -29,13 +27,13 @@ export async function GET(request: NextRequest) {
     admin
       .from('public_walkins')
       .select('*')
-      .eq('shop_id', SHOP_ID)
+      .eq('shop_id', shopId)
       .order('position', { ascending: true }),
 
     admin
       .from('public_barbers')
       .select('*')
-      .eq('shop_id', SHOP_ID)
+      .eq('shop_id', shopId)
       .order('display_order', { ascending: true }),
 
     // Currently-active blocks — BLOCKED overrides everything
