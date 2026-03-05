@@ -30,14 +30,17 @@ export async function GET(request: NextRequest) {
       .eq('shop_id', shopId)
       .order('position', { ascending: true }),
 
+    // Query users table directly (admin bypasses RLS) — avoids dependency on
+    // public_barbers view which may not exist or may lack required fields.
     admin
-      .from('public_barbers')
-      .select('*')
+      .from('users')
+      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled')
       .eq('shop_id', shopId)
+      .eq('role', 'barber')
+      .eq('is_active', true)
       .order('display_order', { ascending: true }),
 
     // Currently-active blocks — BLOCKED overrides everything
-    // Condition: start_at <= now AND end_at > now
     admin
       .from('provider_blocks')
       .select('barber_id, start_at, end_at, note_short')
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
       .lte('start_at', nowIso)
       .gt('end_at', nowIso),
 
-    // Currently-ongoing appointments (kind='appointment' only)
+    // Currently-ongoing appointments
     admin
       .from('provider_appointments')
       .select('barber_id, end_at')
@@ -74,11 +77,48 @@ export async function GET(request: NextRequest) {
       .eq('active', true),
   ])
 
+  const statuses      = statusResult.data ?? []
+  const blocks        = currentBlocksResult.data ?? []
+  const activeAppts   = currentApptsResult.data ?? []
+  const nextAppts     = nextApptsResult.data ?? []
+  const calConns      = calendarConnsResult.data ?? []
+  const rawBarbers    = barbersResult.data ?? []
+
+  // Enrich each barber with status, appointment, and availability data
+  const barbers = rawBarbers.map((u) => {
+    const bs        = statuses.find((s) => s.barber_id === u.id)
+    const block     = blocks.find((b) => b.barber_id === u.id)
+    const hasAppt   = activeAppts.some((a) => a.barber_id === u.id)
+    const nextAppt  = nextAppts.find((a) => a.barber_id === u.id)
+    const calConn   = calConns.find((c) => c.barber_id === u.id)
+
+    const isBlocked = !!block
+
+    return {
+      id:               u.id,
+      shop_id:          u.shop_id,
+      first_name:       u.first_name,
+      last_name:        u.last_name,
+      avatar_url:       u.avatar_url ?? null,
+      display_order:    u.display_order ?? 0,
+      walkin_eligible:  (u as Record<string, unknown>).walkin_enabled !== false,
+      status:           (bs?.status as string) ?? 'FREE',
+      free_at:          bs?.free_at ?? null,
+      busy_reason:      isBlocked ? 'blocked' : hasAppt ? 'appointment' : null,
+      blocked_until:    block?.end_at ?? null,
+      blocked_note:     block?.note_short ?? null,
+      next_appt_at:     nextAppt?.start_at ?? null,
+      next_client_name: nextAppt?.client_name ?? null,
+      off_label:        null,
+      off_until_at:     calConn?.off_until_at ?? null,
+    }
+  })
+
   return NextResponse.json(
     {
-      barber_statuses: statusResult.data ?? [],
+      barber_statuses: statuses,
       walkins: walkinsResult.data ?? [],
-      barbers: barbersResult.data ?? [],
+      barbers,
     },
     {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
