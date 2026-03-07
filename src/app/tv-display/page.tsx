@@ -13,7 +13,7 @@ interface Props {
 
 export default async function TVDisplayPage({ searchParams }: Props) {
   const params = await searchParams
-  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
+  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
 
   const admin = createAdminClient()
   const { data } = await admin

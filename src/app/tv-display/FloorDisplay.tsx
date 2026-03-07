@@ -129,7 +129,7 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
       setWalkins(data.walkins ?? [])
       setBarbers(data.barbers ?? [])
     } catch { /* silent */ }
-  }, [])
+  }, [shopId])
 
   const fetchSettings = useCallback(async () => {
     try {

@@ -8,7 +8,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-  const shopId = process.env.DEFAULT_SHOP_ID ?? '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
+  const shopId = '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
 
   const admin = createAdminClient()
   const { data } = await admin
