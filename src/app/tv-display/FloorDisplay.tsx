@@ -118,17 +118,25 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
   const [barbers, setBarbers]   = useState<TVBarber[]>([])
   const [displaySecs, setDisplaySecs] = useState(0)
   const [ownerSettings, setOwnerSettings] = useState(SETTINGS_DEFAULTS)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
       const url = shopId ? `/api/tv?shop_id=${encodeURIComponent(shopId)}` : '/api/tv'
       const res = await fetch(url)
-      if (!res.ok) return
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFetchError(`API error ${res.status}: ${body?.error ?? res.statusText}`)
+        return
+      }
+      setFetchError(null)
       const data = await res.json()
       setStatuses(data.barber_statuses ?? [])
       setWalkins(data.walkins ?? [])
       setBarbers(data.barbers ?? [])
-    } catch { /* silent */ }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Network error')
+    }
   }, [shopId])
 
   const fetchSettings = useCallback(async () => {
@@ -346,7 +354,12 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
               )
             })}
           </AnimatePresence>
-          {barbers.length === 0 && (
+          {fetchError && (
+            <p className="text-red-400 text-lg mt-8 font-semibold">
+              ⚠ Could not load barbers: {fetchError}
+            </p>
+          )}
+          {!fetchError && barbers.length === 0 && (
             <p className="text-white/50 text-xl mt-8">No barbers on the floor today.</p>
           )}
         </div>
