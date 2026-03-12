@@ -27,7 +27,7 @@ export default async function KioskPage({ searchParams }: Props) {
 
   return (
     <main
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      className="min-h-screen sm:flex sm:items-center sm:justify-center sm:p-4 relative overflow-hidden"
       style={{
         backgroundImage: `url('${bgUrl}')`,
         backgroundSize: 'cover',
@@ -36,7 +36,7 @@ export default async function KioskPage({ searchParams }: Props) {
         backgroundColor: '#0c0a09',
       }}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none hidden sm:block" />
       <div className="relative z-10 w-full">
         <KioskForm shopId={shopId} />
       </div>

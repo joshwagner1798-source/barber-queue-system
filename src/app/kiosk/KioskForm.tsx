@@ -163,7 +163,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
   // -----------------------------------------------------------------------
   if (screen === 'confirmation') {
     return (
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
         <div className="text-6xl mb-4">&#10003;</div>
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           You&apos;re in line!
@@ -194,7 +194,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
           : `#${position} in line`
 
     return (
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           Welcome back, {displayName}!
         </h2>
@@ -237,7 +237,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
   // -----------------------------------------------------------------------
   if (screen === 'checkedIn') {
     return (
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
         <div className="text-6xl mb-4">&#128136;</div>
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           You&apos;re checked in!
@@ -256,7 +256,7 @@ export function KioskForm({ shopId }: KioskFormProps) {
   // Main form screen
   // -----------------------------------------------------------------------
   return (
-    <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+    <div className="w-full bg-white min-h-screen p-6 sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
       <h1 className="text-3xl font-bold text-secondary-900 text-center mb-2">
         Walk-In Sign Up
       </h1>
