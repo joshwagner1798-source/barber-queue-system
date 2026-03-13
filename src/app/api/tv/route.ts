@@ -8,6 +8,9 @@ const nyDowShortFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_
 const nyTimeFmt     = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })
 const nyMonthDayFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
 
+/** Default walk-in service duration used to determine if a walk-in can fit before the next appointment. */
+const DEFAULT_WALKIN_MINUTES = 30
+
 function computeOffLabel(offUntilAt: string, now: Date): string {
   const d = new Date(offUntilAt)
   const diffDays = (d.getTime() - now.getTime()) / 86_400_000
@@ -109,9 +112,10 @@ export async function GET(request: NextRequest) {
   type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number; walkin_enabled?: boolean | null }
 
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
-    const block    = blocks.find((b) => b.barber_id === u.id)
-    const hasAppt  = activeAppts.some((a) => a.barber_id === u.id)
-    const nextAppt = nextAppts.find((a) => a.barber_id === u.id)
+    const block      = blocks.find((b) => b.barber_id === u.id)
+    const activeAppt = activeAppts.find((a) => a.barber_id === u.id)
+    const hasAppt    = !!activeAppt
+    const nextAppt   = nextAppts.find((a) => a.barber_id === u.id)
     const calConn  = calConns.find((c) => c.barber_id === u.id)
 
     const isBlocked      = !!block
@@ -131,14 +135,28 @@ export async function GET(request: NextRequest) {
       hasAppt   ? 'appointment' :
       null
 
-    const activeAppt  = activeAppts.find((a) => a.barber_id === u.id)
-    const free_at     = isOff ? null : (block?.end_at ?? activeAppt?.end_at ?? null)
+    // free_at = when the barber becomes free.
+    // Priority: block end > active appointment end > null (free now).
+    // Previously this was `block?.end_at ?? null`, which left active-appointment
+    // barbers with free_at=null and caused frontends to fall back to next_appt_at
+    // (the START of the next appointment) instead of the current appointment's END.
+    const free_at      = isOff ? null : (block?.end_at ?? activeAppt?.end_at ?? null)
     const off_until_at = isOff ? rawOffUntilAt : null
     const off_label    = isOff ? computeOffLabel(rawOffUntilAt!, now) : null
 
     const nextClientName = nextAppt?.client_name
       ? (nextAppt.client_name.split(' ')[0] || null)
       : null
+
+    // barberReadyTime: when the barber is next free (ISO). Equals free_at when busy,
+    // or now when already available.
+    const barberReadyAt   = free_at ? new Date(free_at) : now
+    const waitTimeMinutes = Math.max(0, Math.round((barberReadyAt.getTime() - now.getTime()) / 60_000))
+
+    // canFitWalkIn: true if a walk-in of DEFAULT_WALKIN_MINUTES can start when the
+    // barber is free and finish before the next scheduled appointment begins.
+    const nextApptStartMs = nextAppt?.start_at ? new Date(nextAppt.start_at).getTime() : Infinity
+    const canFitWalkIn    = (nextApptStartMs - barberReadyAt.getTime()) / 60_000 >= DEFAULT_WALKIN_MINUTES
 
     return {
       id:               u.id,
@@ -150,6 +168,9 @@ export async function GET(request: NextRequest) {
       walkin_eligible:  u.walkin_enabled ?? false,
       status,
       free_at,
+      barber_ready_time: free_at,
+      wait_time_minutes: waitTimeMinutes,
+      can_fit_walkin:    canFitWalkIn,
       busy_reason,
       blocked_until:    block?.end_at ?? null,
       blocked_note:     block?.note_short ?? null,

@@ -356,12 +356,16 @@ export function resolveBarber(
   }
 
   // P6 — APPOINTMENT_BUFFER (30 min safety rule)
+  // The barber is free right now but has an appointment starting soon.
+  // estimated_free_at points to when they'll next be free after that appointment.
+  // Use start_time (not end_time) so downstream queue logic knows the barber
+  // is available from now until the appointment starts, not until it ends.
   const upcomingAppt = upcomingAppointments.find(
     (a) => a.barber_id === barberId,
   )
   if (upcomingAppt) {
     base.reason = 'APPOINTMENT_BUFFER'
-    base.estimated_free_at = upcomingAppt.end_time
+    base.estimated_free_at = upcomingAppt.start_time
     return base
   }
 
