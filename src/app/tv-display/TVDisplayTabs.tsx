@@ -85,11 +85,11 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
             </div>
           </div>
         )}
-      </div>
 
         {activeTab === 'manager' && (
           <ManagerPanel shopId={shopId} />
         )}
+      </div>
 
       {/* Owner modal */}
       <OwnerPanel open={ownerOpen} onClose={() => setOwnerOpen(false)} />
