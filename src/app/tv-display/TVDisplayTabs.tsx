@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { FloorDisplay } from './FloorDisplay'
 import { KioskForm } from '@/app/kiosk/KioskForm'
 import { OwnerPanel } from './OwnerPanel'
+import { ManagerPanel } from './ManagerPanel'
 
-type Tab = 'tv' | 'kiosk'
+type Tab = 'tv' | 'kiosk' | 'manager'
 
 interface Props {
   shopId: string
@@ -44,6 +45,14 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
           Kiosk
         </button>
 
+        {/* Manager */}
+        <button
+          onClick={() => setActiveTab('manager')}
+          className={tabClass(activeTab === 'manager')}
+        >
+          Manager
+        </button>
+
         {/* Owner */}
         <button
           onClick={() => setOwnerOpen(true)}
@@ -77,6 +86,10 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
           </div>
         )}
       </div>
+
+        {activeTab === 'manager' && (
+          <ManagerPanel shopId={shopId} />
+        )}
 
       {/* Owner modal */}
       <OwnerPanel open={ownerOpen} onClose={() => setOwnerOpen(false)} />
