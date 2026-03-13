@@ -173,26 +173,8 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
     return () => clearInterval(id)
   }, [])
 
-  // ── "Race to free" sort: soonest free first, OFF always last ──────────────
-  const sortedBarbers = useMemo(() => {
-    const sortKey = (
-      effStatus: string,
-      bsFreeAt: string | null | undefined,
-      apiFreeAt: string | null,
-    ): number => {
-      if (effStatus === 'OFF')  return Number.MAX_SAFE_INTEGER
-      if (effStatus === 'FREE') return 0
-      const fa = bsFreeAt ?? apiFreeAt
-      return fa ? new Date(fa).getTime() : Date.now() + 4 * 60 * 60 * 1000
-    }
-    return [...barbers].sort((a, b) => {
-      const sa = statuses.find((s) => s.barber_id === a.id)
-      const sb = statuses.find((s) => s.barber_id === b.id)
-      const effA = sa?.status ?? a.status
-      const effB = sb?.status ?? b.status
-      return sortKey(effA, sa?.free_at, a.free_at) - sortKey(effB, sb?.free_at, b.free_at)
-    })
-  }, [barbers, statuses])
+  // Preserve display_order from API (already sorted by display_order ascending)
+  const sortedBarbers = barbers
 
   // ── Derived queue data ─────────────────────────────────────────────────────
   const barberNames = new Map(barbers.map((b) => [b.id, `${b.first_name} ${b.last_name}`]))

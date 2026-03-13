@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // avatar_url intentionally kept — column exists in initial schema.
     admin
       .from('users')
-      .select('id, shop_id, first_name, last_name, avatar_url, display_order')
+      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled')
       .eq('shop_id', shopId)
       .eq('role', 'barber')
       .eq('is_active', true)
@@ -99,14 +99,14 @@ export async function GET(request: NextRequest) {
   const rawBarbers = barbersResult.data
     ?? (await admin
         .from('users')
-        .select('id, shop_id, first_name, last_name')
+        .select('id, shop_id, first_name, last_name, walkin_enabled')
         .eq('shop_id', shopId)
         .eq('role', 'barber')
         .eq('is_active', true)
         .order('display_order', { ascending: true })
         .then(r => r.data ?? []))
 
-  type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number }
+  type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number; walkin_enabled?: boolean | null }
 
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
     const block    = blocks.find((b) => b.barber_id === u.id)
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
       last_name:        u.last_name,
       avatar_url:       u.avatar_url ?? null,
       display_order:    u.display_order ?? 0,
-      walkin_eligible:  true,
+      walkin_eligible:  u.walkin_enabled ?? false,
       status,
       free_at,
       busy_reason,
