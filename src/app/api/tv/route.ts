@@ -131,7 +131,8 @@ export async function GET(request: NextRequest) {
       hasAppt   ? 'appointment' :
       null
 
-    const free_at     = isOff ? null : (block?.end_at ?? null)
+    const activeAppt  = activeAppts.find((a) => a.barber_id === u.id)
+    const free_at     = isOff ? null : (block?.end_at ?? activeAppt?.end_at ?? null)
     const off_until_at = isOff ? rawOffUntilAt : null
     const off_label    = isOff ? computeOffLabel(rawOffUntilAt!, now) : null
 

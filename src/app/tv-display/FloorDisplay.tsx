@@ -321,7 +321,7 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                   nextClientName={b.next_client_name}
                   busyReason={b.busy_reason}
                   blockedNoteShort={b.blocked_note}
-                  freeAt={b.free_at}
+                  freeAt={bs?.free_at ?? b.free_at}
                   offLabel={b.off_label}
                   className="h-full"
                 />
