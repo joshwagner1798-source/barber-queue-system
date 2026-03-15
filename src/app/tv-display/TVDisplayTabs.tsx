@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { FloorDisplay } from './FloorDisplay'
-import { KioskForm } from '@/app/kiosk/KioskForm'
+import { MobileQueue } from './MobileQueue'
 
 // Note: Owner Settings intentionally NOT shown here — this page is public
 // (no auth). Real Owner Settings live at /dashboard → Owner Settings tab.
@@ -47,19 +47,8 @@ export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {
         )}
 
         {activeTab === 'kiosk' && (
-          <div
-            className="min-h-full flex items-center justify-center p-8 relative overflow-hidden"
-            style={{
-              backgroundImage: "url('/images/shop-bg.png')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundColor: '#0c0a09',
-            }}
-          >
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px] pointer-events-none" />
-            <div className="relative z-10 w-full">
-              <KioskForm shopId={shopId || undefined} />
-            </div>
+          <div className="min-h-full bg-zinc-950">
+            <MobileQueue shopId={shopId} />
           </div>
         )}
 
