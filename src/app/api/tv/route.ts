@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     currentApptsResult,
     nextApptsResult,
     calendarConnsResult,
+    shopSettingsResult,
   ] = await Promise.all([
     admin.from('barber_status').select('*').eq('shop_id', shopId),
 
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     admin
       .from('users')
-      .select('id, first_name, last_name, avatar_url, display_order')
+      .select('id, first_name, last_name, avatar_url, display_order, direct_booking_url, walkin_enabled')
       .eq('shop_id', shopId)
       .eq('role', 'barber')
       .eq('is_active', true)
@@ -96,13 +97,27 @@ export async function GET(request: NextRequest) {
       .eq('shop_id', shopId)
       .eq('provider', 'acuity')
       .eq('active', true),
+
+    admin
+      .from('shop_settings')
+      .select('fallback_booking_url')
+      .eq('shop_id', shopId)
+      .maybeSingle(),
   ])
 
   // ── Active blocks ─────────────────────────────────────────────────────────
   type BlockRow = { barber_id: string; start_at: string; end_at: string; note_short: string | null }
   type ApptRow  = { barber_id: string; end_at: string }
   type NextRow  = { barber_id: string; start_at: string; client_name: string | null }
-  type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null; display_order: number }
+  type BarberRow = {
+    id: string
+    first_name: string
+    last_name: string
+    avatar_url: string | null
+    display_order: number
+    direct_booking_url: string | null
+    walkin_enabled: boolean | null  // raw DB column name
+  }
   type ConnRow  = { barber_id: string; off_until_at: string | null }
 
   const currentBlockMap = new Map<string, BlockRow>()
@@ -168,8 +183,9 @@ export async function GET(request: NextRequest) {
     const off_label    = isOff ? computeOffLabel(rawOffUntilAt!, now) : null
     const off_until_at = isOff ? rawOffUntilAt : null
 
+    const { walkin_enabled, direct_booking_url: directBookingUrl, ...rest } = barber
     return {
-      ...barber,
+      ...rest,
       status,
       busy_reason,
       free_at,
@@ -179,12 +195,19 @@ export async function GET(request: NextRequest) {
       next_client_name,
       off_label,
       off_until_at,
+      direct_booking_url: directBookingUrl ?? null,
+      walkin_eligible: walkin_enabled ?? true,
     }
   })
+
+  type ShopSettingsRow = { fallback_booking_url: string | null }
+  const shopBookingUrl =
+    (shopSettingsResult.data as ShopSettingsRow | null)?.fallback_booking_url ?? null
 
   return NextResponse.json({
     barber_statuses: statusResult.data ?? [],
     walkins:         walkinsResult.data ?? [],
     barbers,
+    shop_booking_url: shopBookingUrl,
   })
 }
