@@ -49,8 +49,13 @@ export function MobileQueue({ shopId }: Props) {
       const res = await fetch(`/api/tv?shop_id=${encodeURIComponent(shopId)}`)
       if (!res.ok) throw new Error(`/api/tv returned ${res.status}`)
       const data: TVResponse = await res.json()
-      setBarbers(data.barbers ?? [])
+      const freshBarbers = data.barbers ?? []
+      setBarbers(freshBarbers)
       setShopBookingUrl(data.shop_booking_url ?? null)
+      // Keep modal in sync with freshest status after each poll
+      setSelectedBarber(prev =>
+        prev ? freshBarbers.find((b) => b.id === prev.id) ?? null : null
+      )
       setError(null)
     } catch (err) {
       setError('Unable to load barber availability. Please try again.')
