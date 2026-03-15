@@ -56,7 +56,7 @@ Walk-In Tab
 **Polling:** 30-second interval (not realtime subscriptions — sufficient for mobile browsing).
 
 ### `/api/tv` Change
-Add `acuity_calendar_id` to the per-barber select and response shape:
+Add `acuity_calendar_id` to the per-barber select and response shape. This field is a column on the `users` table directly (not on `calendar_connections`). It is added to the existing `users` select in `/api/tv/route.ts` (e.g., `'id, first_name, last_name, avatar_url, display_order, acuity_calendar_id'`):
 
 ```typescript
 // Added to existing TVBarber response shape
@@ -103,6 +103,9 @@ interface KioskFormProps {
 | `UNAVAILABLE` | `Unavailable` | red |
 | `OFF` | uses existing `off_label` field | zinc |
 
+**`walkin_eligible` handling:**
+`/api/tv` returns `walkin_eligible: boolean` per barber. When `walkin_eligible === false`, the "Hop in Queue" button is hidden in both `BarberMobileCard` (no queue CTA visible on card) and `BarberModal` (only "Book a Time" is shown). The card itself is still displayed and tappable — customers can still book via Acuity. If `/api/tv` does not yet return `walkin_eligible`, treat the field as `true` (default show queue CTA).
+
 **Interaction:** `onClick` opens `BarberModal`
 
 ---
@@ -120,7 +123,7 @@ interface KioskFormProps {
 5. "Next opening: {free_at}" — shown only when `status === 'BUSY'`
 6. Divider
 7. **"Book a Time"** — primary CTA, full-width, amber/gold fill — `window.open(bookingUrl, '_blank')` — hidden if no `acuity_calendar_id`
-8. **"Hop in Queue"** — secondary CTA, full-width, outlined white — transitions to `KioskForm` screen
+8. **"Hop in Queue"** — secondary CTA, full-width, outlined white — transitions to `KioskForm` screen — **hidden when `walkin_eligible === false`**
 
 **Close:** tap backdrop OR drag handle downward
 
