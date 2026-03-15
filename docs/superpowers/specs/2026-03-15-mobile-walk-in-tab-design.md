@@ -161,7 +161,7 @@ A distinct full-width card (not `BarberMobileCard`) rendered first in the grid.
 | `OFF` | uses existing `off_label` field | zinc |
 
 **`walkin_eligible` handling:**
-When `walkin_eligible === false`, the card is still displayed and tappable, but no queue CTA appears on the card surface. In the modal, only "Book a Time" is shown. If `walkin_eligible` is absent from the API response, treat as `true`.
+When `walkin_eligible === false`, the card is still displayed and tappable. In the modal, "Hop in Queue" remains visible but is rendered disabled (grayed out, non-interactive) with a short note beneath it: "Walk-ins unavailable". "Book a Time" is unaffected. If `walkin_eligible` is absent from the API response, treat as `true`.
 
 **Interaction:** `onClick` opens `BarberModal`
 
@@ -182,7 +182,7 @@ When `walkin_eligible === false`, the card is still displayed and tappable, but 
 5. "Next opening: {free_at formatted}" — shown only when `status === 'BUSY'`
 6. Divider
 7. **"Book a Time"** — primary CTA, full-width, amber/gold fill — `window.open(resolvedBookingUrl, '_blank')` — hidden if `resolvedBookingUrl` is null
-8. **"Hop in Queue"** — secondary CTA, full-width, outlined white — transitions to KioskForm with `initialBarberId = barber.id`, `initialPreference = 'PREFERRED'` — **hidden when `walkin_eligible === false`**
+8. **"Hop in Queue"** — secondary CTA, full-width, outlined white — transitions to KioskForm with `initialBarberId = barber.id`, `initialPreference = 'PREFERRED'` — **when `walkin_eligible === false`: rendered disabled (grayed out, `pointer-events-none`) with a note beneath: "Walk-ins unavailable"**
 
 **Close:** tap backdrop OR drag handle area
 
