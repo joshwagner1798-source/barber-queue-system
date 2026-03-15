@@ -43,14 +43,14 @@ export function BarberMobileCard({
       className="w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-left active:scale-95 transition-transform"
     >
       {/* Photo / initials */}
-      <div className="relative flex-shrink-0 w-14 h-14 rounded-full overflow-hidden bg-zinc-700 flex items-center justify-center">
+      <div className="relative flex-shrink-0 w-16 h-16 rounded-full overflow-hidden bg-zinc-700 flex items-center justify-center">
         {avatarUrl ? (
           <Image
             src={avatarUrl}
             alt={`${firstName} ${lastName}`}
             fill
             className="object-cover"
-            sizes="56px"
+            sizes="64px"
           />
         ) : (
           <span className="text-lg font-bold text-zinc-300">{initials}</span>

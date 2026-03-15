@@ -76,7 +76,7 @@ export function BarberModal({
           {/* Panel */}
           <motion.div
             key="panel"
-            className="fixed inset-x-0 bottom-0 z-50 bg-zinc-900/95 rounded-t-3xl shadow-2xl border-t border-zinc-800 pb-safe"
+            className="fixed inset-x-0 bottom-0 z-50 bg-zinc-900/95 rounded-t-3xl shadow-2xl border-t border-zinc-800"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -135,10 +135,10 @@ export function BarberModal({
                 <button
                   onClick={walkinEligible ? onQueue : undefined}
                   disabled={!walkinEligible}
-                  className={`w-full border-2 font-semibold text-lg py-4 rounded-xl transition-colors ${
+                  className={`w-full border-2 font-semibold text-lg py-4 rounded-xl transition-colors disabled:cursor-not-allowed ${
                     walkinEligible
                       ? 'border-white text-white hover:bg-white/10'
-                      : 'border-zinc-700 text-zinc-600 cursor-not-allowed'
+                      : 'border-zinc-700 text-zinc-600'
                   }`}
                 >
                   Hop in Queue
