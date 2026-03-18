@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
   const rawBarbers = barbersResult.data
     ?? (await admin
         .from('users')
-        .select('id, shop_id, first_name, last_name, walkin_enabled')
+        .select('id, shop_id, first_name, last_name, walkin_enabled, photo_x, photo_y')
         .eq('shop_id', shopId)
         .eq('role', 'barber')
         .eq('is_active', true)
