@@ -31,7 +31,7 @@ export async function PATCH(
     .from('users')
     .update(patch)
     .eq('id', id)
-    .select('id, first_name, last_name, avatar_url, is_active, walkin_enabled, display_order')
+    .select('id, first_name, last_name, avatar_url, is_active, walkin_enabled, display_order, photo_x, photo_y')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
