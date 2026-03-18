@@ -66,4 +66,15 @@ describe('applyDragDelta', () => {
       y: 60,
     })
   })
+
+  it('returns current values unchanged when container dimension is zero', () => {
+    expect(applyDragDelta({ x: 40, y: 60 }, { dx: 10, dy: 10 }, { w: 0, h: 100 })).toEqual({
+      x: 40,
+      y: 60,
+    })
+    expect(applyDragDelta({ x: 40, y: 60 }, { dx: 10, dy: 10 }, { w: 100, h: 0 })).toEqual({
+      x: 40,
+      y: 60,
+    })
+  })
 })
