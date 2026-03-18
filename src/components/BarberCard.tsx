@@ -70,6 +70,8 @@ interface Props {
   offLabel?: string | null
   className?: string
   imageClassName?: string
+  photoX?: number | null
+  photoY?: number | null
 }
 
 export function BarberCard({
@@ -85,6 +87,8 @@ export function BarberCard({
   offLabel = null,
   className,
   imageClassName,
+  photoX = 50,
+  photoY = 50,
 }: Props) {
   const motionEnabled = useMotionEnabled()
   const shortName = `${firstName} ${lastName.charAt(0)}.`
@@ -161,7 +165,8 @@ export function BarberCard({
           <img
             src={avatarUrl}
             alt={shortName}
-            className={`absolute inset-0 w-full h-full object-cover object-top${imageClassName ? ` ${imageClassName}` : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover${imageClassName ? ` ${imageClassName}` : ''}`}
+            style={{ objectPosition: `${photoX}% ${photoY}%` }}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
