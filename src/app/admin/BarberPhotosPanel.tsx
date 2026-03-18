@@ -19,6 +19,7 @@ export function BarberPhotosPanel() {
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [photoPos, setPhotoPos] = useState<Record<string, { x: number; y: number }>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
   const [saveError, setSaveError] = useState<Record<string, string>>({})
   const dragState = useRef<{
     barberId: string
@@ -119,7 +120,9 @@ export function BarberPhotosPanel() {
         const d = await res.json()
         throw new Error(d.error ?? 'Save failed')
       }
-      setTimeout(() => setSaving(p => ({ ...p, [barberId]: false })), 2000)
+      setSaving(p => ({ ...p, [barberId]: false }))
+      setSaved(p => ({ ...p, [barberId]: true }))
+      setTimeout(() => setSaved(p => ({ ...p, [barberId]: false })), 2000)
     } catch (err) {
       setSaveError(p => ({ ...p, [barberId]: (err as Error).message }))
       setSaving(p => ({ ...p, [barberId]: false }))
@@ -147,6 +150,9 @@ export function BarberPhotosPanel() {
                     src={barber.avatar_url}
                     alt={`${barber.first_name} ${barber.last_name}`}
                     className="w-full h-full object-cover"
+                    style={{
+                      objectPosition: `${photoPos[barber.id]?.x ?? 50}% ${photoPos[barber.id]?.y ?? 50}%`,
+                    }}
                   />
                 ) : (
                   <span className="text-secondary-300 text-lg font-bold select-none">
@@ -212,6 +218,9 @@ export function BarberPhotosPanel() {
                   </div>
                   {/* Save feedback */}
                   {saving[barber.id] && (
+                    <p className="text-secondary-400 text-xs">Saving…</p>
+                  )}
+                  {saved[barber.id] && (
                     <p className="text-emerald-400 text-xs">Saved</p>
                   )}
                   {saveError[barber.id] && (
