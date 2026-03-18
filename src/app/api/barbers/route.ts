@@ -5,7 +5,7 @@ export async function GET() {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('users')
-    .select('id, first_name, last_name, avatar_url')
+    .select('id, first_name, last_name, avatar_url, photo_x, photo_y')
     .eq('role', 'barber')
     .eq('is_active', true)
     .order('display_order')

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const ALLOWED_FIELDS = new Set(['first_name', 'last_name', 'is_active', 'walkin_enabled'])
+const ALLOWED_FIELDS = new Set(['first_name', 'last_name', 'is_active', 'walkin_enabled', 'photo_x', 'photo_y'])
 
 export async function PATCH(
   req: NextRequest,
