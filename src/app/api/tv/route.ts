@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     // avatar_url intentionally kept — column exists in initial schema.
     admin
       .from('users')
-      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled')
+      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled, photo_x, photo_y')
       .eq('shop_id', shopId)
       .eq('role', 'barber')
       .eq('is_active', true)
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
         .order('display_order', { ascending: true })
         .then(r => r.data ?? []))
 
-  type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number; walkin_enabled?: boolean | null }
+  type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number; walkin_enabled?: boolean | null; photo_x?: number | null; photo_y?: number | null }
 
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
     const block      = blocks.find((b) => b.barber_id === u.id)
@@ -165,6 +165,8 @@ export async function GET(request: NextRequest) {
       last_name:        u.last_name,
       avatar_url:       u.avatar_url ?? null,
       display_order:    u.display_order ?? 0,
+      photo_x:          u.photo_x ?? null,
+      photo_y:          u.photo_y ?? null,
       walkin_eligible:  u.walkin_enabled ?? false,
       status,
       free_at,

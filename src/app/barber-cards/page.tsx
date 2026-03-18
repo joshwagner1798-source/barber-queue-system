@@ -14,7 +14,7 @@ export default async function BarberCardsPage() {
   const [barbersRes, statesRes, currentRes, nextRes] = await Promise.all([
     admin
       .from('users')
-      .select('id, first_name, last_name, avatar_url')
+      .select('id, first_name, last_name, avatar_url, photo_x, photo_y')
       .eq('role', 'barber')
       .eq('is_active', true)
       .order('display_order'),
@@ -39,7 +39,7 @@ export default async function BarberCardsPage() {
       .order('start_at', { ascending: true }),
   ])
 
-  type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null }
+  type BarberRow = { id: string; first_name: string; last_name: string; avatar_url: string | null; photo_x: number | null; photo_y: number | null }
   type StateRow = { barber_id: string; state: string }
 
   const barbers = (barbersRes.data ?? []) as unknown as BarberRow[]
@@ -89,6 +89,8 @@ export default async function BarberCardsPage() {
               busyReason={busyReason as 'appointment' | 'blocked' | null}
               blockedNoteShort={busyReason === 'blocked' ? shortNote(current?.notes ?? null) : null}
               freeAt={current?.end_at ?? null}
+              photoX={barber.photo_x ?? 50}
+              photoY={barber.photo_y ?? 50}
             />
           )
         })}

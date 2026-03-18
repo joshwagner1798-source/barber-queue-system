@@ -51,6 +51,8 @@ interface TVBarber {
   off_until_at: string | null
   /** True when the barber accepts walk-ins (walkin_enabled=true in users table). */
   walkin_eligible: boolean
+  photo_x: number | null
+  photo_y: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +307,8 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                   blockedNoteShort={b.blocked_note}
                   freeAt={bs?.free_at ?? b.free_at}
                   offLabel={b.off_label}
+                  photoX={b.photo_x ?? 50}
+                  photoY={b.photo_y ?? 50}
                   className="h-full"
                 />
               )
