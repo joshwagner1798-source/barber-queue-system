@@ -17,33 +17,44 @@ After a customer successfully books an appointment, they receive a clean confirm
 - Not a full notification system
 - Not a reminder or cancellation flow
 - Not an SMS implementation
-- Not a new booking creation route
+- Not a second or parallel booking route
+
+---
+
+## Codebase Context
+
+The `appointments` table exists in the schema and is read for availability checks, but has no insert path yet. The `provider_appointments` table handles Acuity-synced data separately and is out of scope here. There is no existing booking creation route. This spec introduces the single canonical booking route that will own both appointment creation and email triggering.
 
 ---
 
 ## Architecture
 
 ```
-[Existing booking success path]
-  └── on successful appointment INSERT
-        └── fire-and-forget: sendBookingConfirmation(params)
-              ├── Resend API call
-              ├── success → insert row to notifications table (status: 'sent')
-              └── failure → insert row to notifications table (status: 'failed')
-                          + console.error (never throws to caller)
+POST /api/appointments          ← single canonical booking path
+  src/app/api/appointments/route.ts
+  ├── Auth: verify Supabase session → customer user_id + email
+  ├── Validate: barber_id, service_id, start_time, [notes]
+  ├── Fetch service → duration_minutes → compute end_time
+  ├── Fetch barber → confirm belongs to shop
+  ├── Conflict check: no overlapping confirmed appointment for that barber/slot
+  ├── INSERT into appointments (status: 'confirmed')
+  ├── fire-and-forget: sendBookingConfirmation(params)
+  │     ├── Resend API call
+  │     ├── success → insert row to notifications table (status: 'sent')
+  │     └── failure → insert row to notifications table (status: 'failed')
+  │                 + console.error (never throws to caller)
+  └── return 201 { appointment }
 ```
 
 ### Key rule
 
-Email is triggered **from within the existing booking flow**, at the point an appointment is confirmed in the database. The trigger is not a new route or parallel path. Implementation will locate the exact hook point in the booking success path.
+`src/app/api/appointments/route.ts` is the **only place in the codebase** that creates appointment records and triggers confirmation email. There is no second booking path, no parallel route, no server action that duplicates this responsibility. All future booking flows go through this route.
 
 Email send and notification logging are both **non-blocking**. If either fails, the booking response returns successfully to the customer.
 
 ---
 
-## New Files
-
-### `src/lib/email/resend.ts`
+## New File: `src/lib/email/resend.ts`
 
 Mirrors the shape and intent of `src/lib/sms/twilio.ts`.
 
@@ -74,28 +85,64 @@ type BookingConfirmationParams = {
   serviceName: string
   startTime: string      // ISO 8601
   shopName: string | null
-  shopTimezone: string   // e.g. 'America/New_York'
+  shopTimezone: string   // e.g. 'America/New_York' — sourced from shops.timezone
   appointmentId: string  // full UUID — display last 8 chars in email
 }
 ```
 
 ---
 
-## Modified Files
+## New File: `src/app/api/appointments/route.ts`
 
-### Existing booking success path
+**Auth:** Requires active Supabase session. Customer `user_id` and `email` come from the session, not the request body.
 
-One addition only: after the appointment INSERT succeeds, call `sendBookingConfirmation` in a fire-and-forget wrapper.
+**Request body:**
 
 ```ts
-// fire-and-forget — never await at the top level
+{
+  barber_id: string
+  service_id: string
+  start_time: string   // ISO 8601
+  notes?: string
+}
+```
+
+**Response (201):**
+
+```ts
+{
+  appointment: {
+    id, shop_id, customer_id, barber_id, service_id,
+    start_time, end_time, status, service_price, deposit_amount
+  }
+}
+```
+
+**Error responses:**
+- `400` — validation failure (missing fields, bad time format)
+- `401` — no active session
+- `409` — barber already booked at that slot
+- `500` — unexpected DB error
+
+**Email trigger (inline, fire-and-forget):**
+
+```ts
+// After successful INSERT — never await at booking response level
 sendBookingConfirmation({ ... }).catch((err) => {
   console.error('[email] booking confirmation failed:', err)
-  // log to notifications table (best-effort)
+  // best-effort log to notifications table
 })
 ```
 
-The booking response is returned immediately after the DB insert, before email completes.
+Data assembled for email call:
+- `to` — from Supabase session user email
+- `customerName` — `users.first_name + last_name` (looked up by `customer_id`)
+- `barberName` — `users.first_name + last_name` (looked up by `barber_id`)
+- `serviceName` — `services.name` (looked up by `service_id`)
+- `shopName` — `shops.name` (looked up by `shop_id`, nullable)
+- `shopTimezone` — `shops.timezone`
+- `startTime` — from appointment INSERT result
+- `appointmentId` — from appointment INSERT result
 
 ---
 
@@ -126,7 +173,7 @@ No marketing copy. No unsubscribe footer. No logo.
 
 ## Notifications Table Logging
 
-Uses the existing `notifications` table (already in schema). Each email attempt writes one row.
+Uses the existing `notifications` table. Each email attempt writes one row.
 
 | Column              | Value                                      |
 |---------------------|--------------------------------------------|
@@ -141,7 +188,7 @@ Uses the existing `notifications` table (already in schema). Each email attempt 
 | `sent_at`           | timestamp on success, null on failure      |
 | `error_message`     | null on success, error message on failure  |
 
-Logging is best-effort. If the notification insert itself fails, it is logged to `console.error` only — it does not affect the email send result or the booking response.
+Logging is best-effort. If the notification insert fails, it is logged to `console.error` only.
 
 ---
 
@@ -152,7 +199,7 @@ Logging is best-effort. If the notification insert itself fails, it is logged to
 | Resend API error           | Caught, logged, notifications row written       |
 | Missing `RESEND_API_KEY`   | Throws at call time, caught by fire-and-forget  |
 | Notification insert fails  | console.error only, booking unaffected          |
-| Appointment insert fails   | Email never fires — booking fails normally      |
+| Appointment INSERT fails   | Email never fires — booking fails normally      |
 
 ---
 
@@ -173,8 +220,6 @@ Add to `package.json`:
 "resend": "^4.x"
 ```
 
-No other new dependencies.
-
 ---
 
 ## Files Summary
@@ -182,7 +227,7 @@ No other new dependencies.
 | Action   | File                                        |
 |----------|---------------------------------------------|
 | Create   | `src/lib/email/resend.ts`                   |
-| Modify   | Existing booking success path (hook point)  |
+| Create   | `src/app/api/appointments/route.ts`         |
 | Modify   | `package.json` (add `resend`)               |
 
 ---
@@ -195,3 +240,5 @@ No other new dependencies.
 - Email preference settings
 - Unsubscribe / opt-out logic
 - HTML email design system or template engine
+- Payment processing (separate workstream)
+- OTP auth UI (Supabase handles customer auth)
