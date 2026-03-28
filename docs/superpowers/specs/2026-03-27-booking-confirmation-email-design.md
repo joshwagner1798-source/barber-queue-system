@@ -1,8 +1,17 @@
 # Booking Confirmation Email — Design Spec
 
 **Date:** 2026-03-27
-**Status:** Approved for implementation
+**Status:** SUPERSEDED — do not implement
+**Superseded by:** Stripe webhook implementation (`confirmAppointmentPaid`) — landed in Terminal B
 **Scope:** Minimal, isolated, production-safe
+
+---
+
+> **ARCHIVED — 2026-03-27**
+>
+> This spec is no longer active. Before this plan reached implementation, Terminal B delivered booking confirmation email triggered from the Stripe webhook after `confirmAppointmentPaid`. That is the canonical trigger point.
+>
+> Implementing this spec as written would introduce a second booking/email path (`POST /api/appointments`) that conflicts with the webhook-based architecture already in place. This spec is kept for reference only.
 
 ---
 
