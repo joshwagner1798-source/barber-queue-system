@@ -150,7 +150,7 @@ export function ServicesPanel({ shopId }: Props) {
                       value={editingName[service.id] ?? ''}
                       onChange={e => setEditingName(p => ({ ...p, [service.id]: e.target.value }))}
                       onBlur={() => commitName(service.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitName(service.id) }}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                       className="w-full bg-secondary-700 border border-secondary-600 rounded px-2 py-0.5 text-white text-sm focus:outline-none focus:border-primary-400"
                     />
                   ) : (
@@ -172,7 +172,7 @@ export function ServicesPanel({ shopId }: Props) {
                       value={editingDuration[service.id] ?? ''}
                       onChange={e => setEditingDuration(p => ({ ...p, [service.id]: e.target.value }))}
                       onBlur={() => commitDuration(service.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitDuration(service.id) }}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                       className="w-full bg-secondary-700 border border-secondary-600 rounded px-2 py-0.5 text-white text-sm text-right focus:outline-none focus:border-primary-400"
                     />
                   ) : (
@@ -195,7 +195,7 @@ export function ServicesPanel({ shopId }: Props) {
                       value={editingPrice[service.id] ?? ''}
                       onChange={e => setEditingPrice(p => ({ ...p, [service.id]: e.target.value }))}
                       onBlur={() => commitPrice(service.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitPrice(service.id) }}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                       className="w-full bg-secondary-700 border border-secondary-600 rounded px-2 py-0.5 text-white text-sm text-right focus:outline-none focus:border-primary-400"
                     />
                   ) : (
