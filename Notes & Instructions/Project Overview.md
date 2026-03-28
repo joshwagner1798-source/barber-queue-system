@@ -63,9 +63,14 @@ Shop owner/admin can:
 
 ### Phase 5: Notifications
 - [ ] Email provider setup (Resend)
-- [ ] Booking confirmation emails
+- [x] Booking confirmation emails
 - [ ] Reminder emails (24h, 1h)
 - [ ] Cancellation notifications
+
+#### Architecture decision — booking confirmation email (2026-03-27)
+- **Trigger point:** Stripe webhook handler, after `confirmAppointmentPaid` succeeds
+- **Why:** Payment success is the moment the booking is considered real. Triggering from the webhook ensures the email fires exactly once, after money is confirmed, from a single authoritative path.
+- **Do not add a second trigger.** No other route, server action, or booking path should send a booking confirmation email. If you are working on the booking or payment flow and feel tempted to add an email call elsewhere, check the Stripe webhook handler first.
 
 ### Phase 6: Launch
 - [ ] Mobile responsiveness
