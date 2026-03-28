@@ -9,6 +9,8 @@ import { BarberManagementPanel } from './BarberManagementPanel'
 import { DisplayBackgroundsPanel } from './DisplayBackgroundsPanel'
 import { UISettingsPanel } from './UISettingsPanel'
 import type { BarberInfo, QueueEntry, EventEntry, BarberManualState } from '@/types/dashboard'
+import { ServicesPanel } from './ServicesPanel'
+import { BusinessHoursPanel } from './BusinessHoursPanel'
 
 interface RawWalkin {
   id: string
@@ -182,6 +184,12 @@ export function AdminDashboard({ currentUserName, shopId, initialWalkins, initia
 
       {/* TV display UI settings */}
       <UISettingsPanel shopId={shopId} />
+
+      {/* Services setup */}
+      <ServicesPanel shopId={shopId} />
+
+      {/* Business hours setup */}
+      <BusinessHoursPanel shopId={shopId} />
     </div>
   )
 }
