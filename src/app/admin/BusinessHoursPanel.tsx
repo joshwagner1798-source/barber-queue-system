@@ -82,7 +82,7 @@ export function BusinessHoursPanel({ shopId }: Props) {
             <input
               type="text"
               value={day.open_time}
-              disabled={day.is_closed}
+              disabled={day.is_closed || saving}
               onChange={e => updateDay(day.day_of_week, { open_time: e.target.value })}
               placeholder="09:00"
               className="w-20 bg-secondary-800 border border-secondary-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-400 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -91,7 +91,7 @@ export function BusinessHoursPanel({ shopId }: Props) {
             <input
               type="text"
               value={day.close_time}
-              disabled={day.is_closed}
+              disabled={day.is_closed || saving}
               onChange={e => updateDay(day.day_of_week, { close_time: e.target.value })}
               placeholder="18:00"
               className="w-20 bg-secondary-800 border border-secondary-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-primary-400 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -99,6 +99,7 @@ export function BusinessHoursPanel({ shopId }: Props) {
             <span className="text-secondary-400 text-xs ml-auto">Closed</span>
             <Toggle
               checked={day.is_closed}
+              disabled={saving}
               onChange={v => updateDay(day.day_of_week, { is_closed: v })}
             />
           </div>
