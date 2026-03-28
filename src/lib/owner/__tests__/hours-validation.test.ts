@@ -50,6 +50,12 @@ describe('validateHoursRow', () => {
     ).toMatch(/close_time/)
   })
 
+  it('rejects non-HH:MM close_time', () => {
+    expect(
+      validateHoursRow({ day_of_week: 1, open_time: '09:00', close_time: 'bar', is_closed: false })
+    ).toMatch(/close_time/)
+  })
+
   it('rejects open_time equal to close_time when not closed', () => {
     expect(
       validateHoursRow({ day_of_week: 1, open_time: '09:00', close_time: '09:00', is_closed: false })

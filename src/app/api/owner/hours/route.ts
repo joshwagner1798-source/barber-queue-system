@@ -21,6 +21,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { shopId, error: shopError } = requireShopId(req)
+  if (shopError) return NextResponse.json(shopError, { status: 400 })
+
   let body: unknown
   try {
     body = await req.json()
@@ -28,11 +31,8 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { shop_id, hours } = body as { shop_id?: string; hours?: unknown[] }
+  const { hours } = body as { hours?: unknown[] }
 
-  if (!shop_id || typeof shop_id !== 'string') {
-    return NextResponse.json({ error: 'shop_id is required' }, { status: 400 })
-  }
   if (!Array.isArray(hours) || hours.length === 0) {
     return NextResponse.json({ error: 'hours must be a non-empty array' }, { status: 400 })
   }
@@ -51,13 +51,13 @@ export async function PUT(req: NextRequest) {
   const { error: deleteError } = await admin
     .from('business_hours')
     .delete()
-    .eq('shop_id', shop_id)
+    .eq('shop_id', shopId)
     .is('barber_id', null)
 
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
 
   const rows = (hours as HoursRow[]).map(h => ({
-    shop_id,
+    shop_id: shopId,
     barber_id: null,
     day_of_week: h.day_of_week,
     open_time: h.open_time,
