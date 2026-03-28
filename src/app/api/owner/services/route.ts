@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { shopId, error: shopError } = requireShopId(req)
+  if (shopError) return NextResponse.json(shopError, { status: 400 })
+
   let body: unknown
   try {
     body = await req.json()
@@ -26,11 +29,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { shop_id, name, duration_minutes, price } = body as Record<string, unknown>
+  const { name, duration_minutes, price } = body as Record<string, unknown>
 
-  if (!shop_id || typeof shop_id !== 'string') {
-    return NextResponse.json({ error: 'shop_id is required' }, { status: 400 })
-  }
   if (!name || typeof name !== 'string' || !(name as string).trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
@@ -43,15 +43,17 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  const { count } = await admin
+  const { count, error: countError } = await admin
     .from('services')
     .select('id', { count: 'exact', head: true })
-    .eq('shop_id', shop_id)
+    .eq('shop_id', shopId)
+
+  if (countError) return NextResponse.json({ error: countError.message }, { status: 500 })
 
   const { data, error: dbError } = await admin
     .from('services')
     .insert({
-      shop_id,
+      shop_id: shopId,
       name: (name as string).trim(),
       duration_minutes,
       price,
