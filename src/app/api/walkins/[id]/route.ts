@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { validateWalkinTransition } from '@/lib/walkin/validation'
 import { appendEvent, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
 import { refreshShopProjection } from '@/lib/walkin/shop_projector'
+import { notifyCustomerCalled } from '@/lib/walkin/customer_sms'
 import type { Walkin } from '@/types/database'
 
 export async function PATCH(
@@ -44,6 +45,11 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Notify customer when manually called (fire-and-forget)
+  if (status === 'CALLED') {
+    notifyCustomerCalled(id, existing.shop_id).catch(() => {})
+  }
 
   try {
     await appendEvent(supabase, {

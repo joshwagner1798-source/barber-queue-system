@@ -42,3 +42,9 @@ Realtime Logic:
 
 - Supabase realtime listens for schedule changes
 - Queue recalculates automatically
+
+## Current Missing Pieces
+
+- schedule sync engine
+- assignment algorithm
+- realtime queue recalculation

@@ -6,7 +6,10 @@ import { StatusBar } from './StatusBar'
 import { ActiveClientCard } from './ActiveClientCard'
 import { MyQueuePanel } from './MyQueuePanel'
 import { ShopQueuePanel } from './ShopQueuePanel'
+import { SchedulePanel } from './SchedulePanel'
 import type { QueueEntry, BarberManualState } from '@/types/dashboard'
+
+type ActiveTab = 'queue' | 'schedule'
 
 interface RawWalkin {
   id: string
@@ -63,6 +66,7 @@ export function BarberDashboard({
   const [walkins, setWalkins] = useState<RawWalkin[]>(initialWalkins)
   const [states, setStates] = useState<RawState[]>(initialStates)
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(initialActiveAssignmentId)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('queue')
 
   const myStateRaw = states.find(s => s.barber_id === currentBarberId)?.state ?? 'OFF'
   const myState: BarberManualState = myStateRaw as BarberManualState
@@ -111,6 +115,13 @@ export function BarberDashboard({
     e => e.assignedBarberId === currentBarberId && e.status === 'WAITING'
   )
 
+  const tabCls = (tab: ActiveTab) =>
+    `px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+      activeTab === tab
+        ? 'bg-secondary-800 text-white'
+        : 'text-secondary-400 hover:text-secondary-200 hover:bg-secondary-900'
+    }`
+
   return (
     <div className="min-h-screen bg-secondary-950 flex flex-col">
       <StatusBar
@@ -124,29 +135,50 @@ export function BarberDashboard({
           )
         }}
       />
-      <div className="flex-1 grid grid-cols-[1fr_400px] gap-6 p-6">
-        {/* Left: My Queue */}
-        <div className="space-y-4">
-          <h2 className="text-secondary-400 text-xs font-medium uppercase tracking-wide">
-            My Queue ({myQueue.length + (activeClient ? 1 : 0)})
-          </h2>
-          {activeClient ? (
-            <ActiveClientCard
-              client={activeClient}
-              assignmentId={activeAssignmentId ?? activeClient.id}
-              onDone={fetchData}
-              onNoShow={fetchData}
-            />
-          ) : (
-            <div className="bg-secondary-900 border border-secondary-800 border-dashed rounded-xl p-6 text-center">
-              <p className="text-secondary-500 text-sm">No active client</p>
-            </div>
-          )}
-          <MyQueuePanel queue={myQueue} />
-        </div>
-        {/* Right: Shop Queue */}
-        <ShopQueuePanel queue={allQueue} currentBarberId={currentBarberId} />
+
+      {/* Tab strip */}
+      <div className="flex items-center gap-1 px-6 pt-4 pb-0">
+        <button className={tabCls('queue')}   onClick={() => setActiveTab('queue')}>
+          Queue
+        </button>
+        <button className={tabCls('schedule')} onClick={() => setActiveTab('schedule')}>
+          Schedule
+        </button>
       </div>
+
+      {/* Queue view */}
+      {activeTab === 'queue' && (
+        <div className="flex-1 grid grid-cols-[1fr_400px] gap-6 p-6">
+          {/* Left: My Queue */}
+          <div className="space-y-4">
+            <h2 className="text-secondary-400 text-xs font-medium uppercase tracking-wide">
+              My Queue ({myQueue.length + (activeClient ? 1 : 0)})
+            </h2>
+            {activeClient ? (
+              <ActiveClientCard
+                client={activeClient}
+                assignmentId={activeAssignmentId ?? activeClient.id}
+                onDone={fetchData}
+                onNoShow={fetchData}
+              />
+            ) : (
+              <div className="bg-secondary-900 border border-secondary-800 border-dashed rounded-xl p-6 text-center">
+                <p className="text-secondary-500 text-sm">No active client</p>
+              </div>
+            )}
+            <MyQueuePanel queue={myQueue} />
+          </div>
+          {/* Right: Shop Queue */}
+          <ShopQueuePanel queue={allQueue} currentBarberId={currentBarberId} />
+        </div>
+      )}
+
+      {/* Schedule view */}
+      {activeTab === 'schedule' && (
+        <div className="flex-1 p-6 max-w-2xl">
+          <SchedulePanel barberId={currentBarberId} shopId={shopId} />
+        </div>
+      )}
     </div>
   )
 }

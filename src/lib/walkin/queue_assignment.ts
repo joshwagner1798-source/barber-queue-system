@@ -10,6 +10,8 @@ import { appendEvent, WALKIN_AUTO_ASSIGNED } from './events'
 const DEFAULT_SERVICE_MINUTES = 30
 /** Buffer before a booked appointment where we won't start a walk-in (minutes). */
 const APPOINTMENT_BUFFER_MINUTES = 5
+/** Minutes before a provider (Acuity) appointment where we block new walk-in assignments. */
+const WALKIN_PROVIDER_BUFFER_MINUTES = 30
 
 // ---------------------------------------------------------------------------
 // Types
@@ -204,6 +206,34 @@ export async function processBarberAvailable(
     return { assigned: false, reason: 'Barber is not eligible for walk-in assignments (walkin_enabled=false)' }
   }
 
+  // 0b. Block assignment if barber has an Acuity appointment within the buffer window.
+  //     This check uses provider_appointments (the authoritative source for this shop)
+  //     so it fires even when the native appointments table is empty.
+  //     Applies even if the barber manually forced themselves AVAILABLE.
+  {
+    const now = new Date()
+    const bufferCutoff = new Date(now.getTime() + WALKIN_PROVIDER_BUFFER_MINUTES * 60_000).toISOString()
+    const { data: soonApptData } = await supabase
+      .from('provider_appointments')
+      .select('barber_id, start_at')
+      .eq('shop_id', shopId)
+      .eq('barber_id', barberId)
+      .eq('kind', 'appointment')
+      .not('status', 'in', '("CANCELLED","DELETED")')
+      .gt('start_at', now.toISOString())
+      .lte('start_at', bufferCutoff)
+      .limit(1)
+
+    type SoonApptRow = { barber_id: string; start_at: string }
+    const soonAppt = (soonApptData as unknown as SoonApptRow[] | null)?.[0]
+    if (soonAppt) {
+      return {
+        assigned: false,
+        reason: `Barber has an appointment within ${WALKIN_PROVIDER_BUFFER_MINUTES} minutes (${soonAppt.start_at}) — skipping walk-in assignment`,
+      }
+    }
+  }
+
   // 1. Get current availability (verifies barber is truly AVAILABLE)
   const availability = await getShopAvailability(supabase, shopId)
   const barber = availability.barbers.find((b) => b.barber_id === barberId)
@@ -351,6 +381,24 @@ export async function autoAssignWalkins(
 
   if (availableBarberIds.length === 0) return result
 
+  // 1b. Fetch all barbers who have an Acuity appointment within the buffer window.
+  //     Single query for the whole shop — far cheaper than per-barber queries.
+  //     barber_status may be up to 60 seconds stale; this real-time check closes the gap.
+  const bufferCutoff = new Date(now.getTime() + WALKIN_PROVIDER_BUFFER_MINUTES * 60_000).toISOString()
+  const { data: soonApptData } = await supabase
+    .from('provider_appointments')
+    .select('barber_id')
+    .eq('shop_id', shopId)
+    .eq('kind', 'appointment')
+    .not('status', 'in', '("CANCELLED","DELETED")')
+    .gt('start_at', now.toISOString())
+    .lte('start_at', bufferCutoff)
+
+  type SoonApptBarber = { barber_id: string }
+  const soonApptBarberIds = new Set(
+    (soonApptData ?? []).map((a) => (a as unknown as SoonApptBarber).barber_id),
+  )
+
   // 2. For each available barber, try to assign next walk-in
   for (const barberId of availableBarberIds) {
     // Skip if barber already has an active assignment
@@ -363,6 +411,9 @@ export async function autoAssignWalkins(
       .limit(1)
 
     if ((activeForBarber ?? []).length > 0) continue
+
+    // Skip if barber has an upcoming Acuity appointment within the buffer window
+    if (soonApptBarberIds.has(barberId)) continue
 
     // Priority 1: oldest PREFERRED walk-in wanting this barber
     const { data: preferred } = await supabase

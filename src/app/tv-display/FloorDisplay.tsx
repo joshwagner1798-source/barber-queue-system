@@ -8,6 +8,7 @@ import { BarberCard } from '@/components/BarberCard'
 import { NewYorkClock } from '@/components/tv/NewYorkClock'
 import { FullscreenButton } from './FullscreenButton'
 import { useMotionEnabled } from '@/hooks/useMotionEnabled'
+import { formatWaitTime } from '@/lib/formatWaitTime'
 import type { OwnerSettings } from '@/types/database'
 
 
@@ -121,6 +122,13 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
   const [displaySecs, setDisplaySecs] = useState(0)
   const [ownerSettings, setOwnerSettings] = useState(SETTINGS_DEFAULTS)
 
+  // Scheduling mode — loaded from shop_settings; defaults to 'off' (no change to UI)
+  const [schedulingMode, setSchedulingMode] = useState<'off' | 'native' | 'external'>('off')
+  const [externalBookingUrl, setExternalBookingUrl] = useState<string | null>(null)
+
+  // Which barber card has the in-card action slot open
+  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     try {
       const url = shopId ? `/api/tv?shop_id=${encodeURIComponent(shopId)}` : '/api/tv'
@@ -145,8 +153,25 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
     } catch { /* silent */ }
   }, [shopId])
 
+  const fetchShopSettings = useCallback(async () => {
+    try {
+      const url = shopId
+        ? `/api/shop-settings?shop_id=${encodeURIComponent(shopId)}`
+        : '/api/shop-settings'
+      const res = await fetch(url)
+      if (!res.ok) return
+      const data = await res.json()
+      const mode = data.scheduling_mode ?? 'off'
+      if (mode === 'native' || mode === 'external' || mode === 'off') {
+        setSchedulingMode(mode)
+      }
+      setExternalBookingUrl(data.external_booking_url ?? null)
+    } catch { /* silent — scheduling stays off */ }
+  }, [shopId])
+
   useEffect(() => { fetchData() }, [fetchData])
   useEffect(() => { fetchSettings() }, [fetchSettings])
+  useEffect(() => { fetchShopSettings() }, [fetchShopSettings])
 
   // Realtime — separate channel; do NOT touch subscriptions logic
   useEffect(() => {
@@ -194,8 +219,11 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
         : null,
     }))
 
-  const mm = String(Math.floor(displaySecs / 60)).padStart(2, '0')
-  const ss = String(displaySecs % 60).padStart(2, '0')
+  const waitMinutes      = Math.floor(displaySecs / 60)
+  const nextAvailableIso = displaySecs > 0 ? new Date(Date.now() + displaySecs * 1000).toISOString() : null
+  const waitLabel        = displaySecs > 0 ? formatWaitTime(waitMinutes, nextAvailableIso) : '—'
+  const waitFontClass    = waitMinutes >= 90 ? 'text-xl' : waitMinutes >= 60 ? 'text-4xl' : 'text-6xl'
+
   const statusMapForFree = new Map(statuses.map((s) => [s.barber_id, s]))
   // Only walkin-eligible barbers count for "Walk right in!" — non-eligible barbers
   // (walkin_enabled=false) are visible on TV but do NOT accept walk-ins.
@@ -222,6 +250,7 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
   return (
     <div
       className={`h-screen flex relative overflow-hidden ${fontSizeClass}`}
+      onClick={() => setSelectedBarberId(null)}
       style={{
         backgroundImage: isLight ? undefined : `url('${bgImage}')`,
         backgroundSize: 'cover',
@@ -295,7 +324,110 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                 b.status === 'FREE'                                        ? 'AVAILABLE' :
                 'AVAILABLE'
 
-              const card = (
+              const isSelected = selectedBarberId === b.id
+
+              // STATUS_CONFIG subset for badge — mirrors BarberCard's config
+              const badgeCfg: Record<string, string> = {
+                AVAILABLE: 'bg-emerald-500 text-white',
+                IN_CHAIR:  'bg-amber-500 text-white',
+                ON_BREAK:  'bg-blue-500 text-white',
+                BLOCKED:   'bg-red-600 text-white',
+                OFF:       'bg-zinc-600 text-zinc-300',
+              }
+              const badgeLabel: Record<string, string> = {
+                AVAILABLE: 'READY',
+                IN_CHAIR:  'BUSY',
+                ON_BREAK:  'ON BREAK',
+                BLOCKED:   'BLOCKED',
+                OFF:       'OFF',
+              }
+
+              // Focused photo card — rendered when this card is selected.
+              // Photo fills the card as background. Dark gradient for readability.
+              // Name + actions composited in the lower-middle of the photo.
+              const focusedCard = (
+                <div
+                  className="relative w-full h-full rounded-xl overflow-hidden ring-1 ring-white/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Full-card photo background */}
+                  {b.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={b.avatar_url}
+                      alt={b.first_name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{ objectPosition: `${b.photo_x ?? 50}% ${b.photo_y ?? 50}%` }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center">
+                      <span className="text-zinc-400 text-5xl font-bold">
+                        {b.first_name[0]}{b.last_name[0]}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* EXAGGERATED gradient — covers bottom 65%, near-opaque at base */}
+                  <div
+                    className="absolute inset-0"
+                    style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 40%, rgba(0,0,0,0.45) 65%, transparent 100%)' }}
+                  />
+
+                  {/* Status badge — top-right */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold tracking-wide ${badgeCfg[cardStatus] ?? badgeCfg.OFF}`}>
+                      {badgeLabel[cardStatus] ?? 'OFF'}
+                    </span>
+                  </div>
+
+                  {/* Name + buttons — lower half of the card */}
+                  <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center px-4 pb-5">
+                    {/* Name — large and unmistakable */}
+                    <p
+                      className="text-white font-black text-center leading-tight drop-shadow-lg mb-5"
+                      style={{ fontSize: 'clamp(26px, 3vw, 44px)', letterSpacing: '-0.02em' }}
+                    >
+                      {b.first_name}<br />{b.last_name}
+                    </p>
+
+                    {/* Buttons — centered, 80% width */}
+                    <div className="flex flex-col w-4/5 gap-2">
+                      {/* Hop in Queue */}
+                      <a
+                        href={`/sharperimage/kiosk?barberId=${b.id}&preference=PREFERRED`}
+                        className="block w-full rounded-xl font-bold text-white text-center py-2.5 text-base transition-colors bg-[#27a644] hover:bg-[#22923c]"
+                      >
+                        Hop in Queue
+                      </a>
+
+                      {/* Book a Time — external URL takes priority; native mode shows button in-card */}
+                      {externalBookingUrl ? (
+                        <a
+                          href={externalBookingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full rounded-xl font-bold text-white text-center py-2.5 text-base transition-colors hover:opacity-90"
+                          style={{ background: 'rgba(255,255,255,0.25)' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Book a Time
+                        </a>
+                      ) : schedulingMode !== 'off' ? (
+                        <a
+                          href={`/sharperimage/book?barberId=${b.id}`}
+                          className="block w-full rounded-xl font-bold text-white text-center py-2.5 text-base transition-colors hover:opacity-90"
+                          style={{ background: 'rgba(255,255,255,0.25)' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Book a Time
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )
+
+              const normalCard = (
                 <BarberCard
                   firstName={b.first_name}
                   lastName={b.last_name}
@@ -313,6 +445,16 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                 />
               )
 
+              const cardContent = (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSelectedBarberId(isSelected ? null : b.id) }}
+                  className="relative block w-full h-full text-left focus:outline-none rounded-xl"
+                >
+                  {isSelected ? focusedCard : normalCard}
+                </button>
+              )
+
               return motionEnabled ? (
                 <motion.div
                   key={b.id}
@@ -323,11 +465,11 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
                   transition={{ duration: 0.45, delay: i * 0.07, ease: 'easeOut' }}
                   className="h-full min-h-0"
                 >
-                  {card}
+                  {cardContent}
                 </motion.div>
               ) : (
                 <div key={b.id} className="h-full min-h-0">
-                  {card}
+                  {cardContent}
                 </div>
               )
             })}
@@ -339,24 +481,24 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
       </div>
 
       {/* ── Right sidebar ─────────────────────────────────────────────── */}
-      <aside className={`relative z-10 w-72 xl:w-80 backdrop-blur-md border-l p-6 flex flex-col gap-6 ${isLight ? 'bg-white/70 border-gray-200' : 'bg-black/60 border-white/10'}`}>
+      <aside className={`relative z-10 w-72 xl:w-80 backdrop-blur-md border-l p-6 flex flex-col gap-6 ${isLight ? 'bg-white/70 border-gray-200' : 'bg-[#0f1011]/90 border-[rgba(255,255,255,0.06)]'}`}>
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isLight ? 'text-gray-500' : 'text-white/50'}`}>
+          <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isLight ? 'text-gray-500' : 'text-[#62666d]'}`}>
             Estimated Wait
           </p>
-          <div className={`text-7xl font-mono font-bold tabular-nums leading-none drop-shadow-lg ${isLight ? 'text-gray-900' : 'text-white'}`}>
-            {mm}:{ss}
+          <div className={`${waitFontClass} font-bold leading-tight ${isLight ? 'text-gray-900' : 'text-[#f7f8f8]'}`}>
+            {waitLabel}
           </div>
           {anyFree && waitingEntries.length === 0 ? (
-            <p className="text-emerald-500 text-sm mt-3 font-medium">Walk right in!</p>
+            <p className="text-[#27a644] text-sm mt-3 font-medium">Walk right in!</p>
           ) : waitingEntries.length > 0 ? (
-            <p className={`text-sm mt-3 ${isLight ? 'text-gray-500' : 'text-white/50'}`}>{waitingEntries.length} waiting</p>
+            <p className={`text-sm mt-3 ${isLight ? 'text-gray-500' : 'text-[#8a8f98]'}`}>{waitingEntries.length} waiting</p>
           ) : null}
-          <p className={`text-xs mt-3 ${isLight ? 'text-gray-400' : 'text-white/30'}`}>Shop Hours: 9:00 AM – 7:00 PM</p>
+          <p className={`text-xs mt-3 ${isLight ? 'text-gray-400' : 'text-[#62666d]'}`}>Shop Hours: 9:00 AM – 7:00 PM</p>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isLight ? 'text-gray-500' : 'text-white/50'}`}>
+          <p className={`text-xs font-semibold uppercase tracking-widest mb-3 ${isLight ? 'text-gray-500' : 'text-[#62666d]'}`}>
             Queue
           </p>
           <WaitingList entries={waitingEntries} />

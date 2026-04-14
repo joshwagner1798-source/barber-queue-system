@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/dispatcher",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/jobs/walkin-timeouts",
+      "schedule": "*/2 * * * *"
+    },
+    {
       "path": "/api/jobs/reconcile-acuity",
       "schedule": "0 8 * * *"
     }

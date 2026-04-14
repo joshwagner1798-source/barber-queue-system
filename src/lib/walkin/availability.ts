@@ -124,6 +124,7 @@ async function fetchAvailabilityData(
     upcomingApptsResult,
     statesResult,
     assignmentsResult,
+    providerUpcomingResult,
   ] = await Promise.all([
     supabase.from('shops').select('*').eq('id', shopId).single(),
 
@@ -170,12 +171,26 @@ async function fetchAvailabilityData(
       .select('*')
       .eq('shop_id', shopId)
       .is('ended_at', null),
+
+    // Acuity-synced upcoming appointments within the safety buffer.
+    // These are the authoritative source for this shop — the native appointments
+    // table may be empty, so this catches what P6 would otherwise miss.
+    supabase
+      .from('provider_appointments')
+      .select('barber_id, start_at')
+      .eq('shop_id', shopId)
+      .eq('kind', 'appointment')
+      .not('status', 'in', '("CANCELLED","DELETED")')
+      .gt('start_at', nowISO)
+      .lte('start_at', bufferCutoffISO),
   ])
 
   if (shopResult.error)
     throw new Error(`Failed to fetch shop: ${shopResult.error.message}`)
   if (barbersResult.error)
     throw new Error(`Failed to fetch barbers: ${barbersResult.error.message}`)
+
+  type ProviderApptRow = { barber_id: string; start_at: string }
 
   return {
     shop: shopResult.data as unknown as Shop,
@@ -186,6 +201,7 @@ async function fetchAvailabilityData(
     upcomingAppointments: (upcomingApptsResult.data ?? []) as unknown as Appointment[],
     states: (statesResult.data ?? []) as unknown as BarberState[],
     assignments: (assignmentsResult.data ?? []) as unknown as AssignmentRow[],
+    providerUpcomingAppointments: (providerUpcomingResult.data ?? []) as unknown as ProviderApptRow[],
   }
 }
 
@@ -238,6 +254,8 @@ export function resolveBarber(
   upcomingAppointments: Appointment[],
   states: BarberState[],
   assignments: AssignmentRow[],
+  /** Acuity-synced upcoming appointments within the buffer window (provider_appointments table). */
+  upcomingProviderAppointments: { barber_id: string; start_at: string }[] = [],
 ): BarberAvailability {
   const base: BarberAvailability = {
     barber_id: barberId,
@@ -355,7 +373,7 @@ export function resolveBarber(
     return base
   }
 
-  // P6 — APPOINTMENT_BUFFER (30 min safety rule)
+  // P6 — APPOINTMENT_BUFFER (30 min safety rule — native appointments table)
   // The barber is free right now but has an appointment starting soon.
   // estimated_free_at points to when they'll next be free after that appointment.
   // Use start_time (not end_time) so downstream queue logic knows the barber
@@ -366,6 +384,17 @@ export function resolveBarber(
   if (upcomingAppt) {
     base.reason = 'APPOINTMENT_BUFFER'
     base.estimated_free_at = upcomingAppt.start_time
+    return base
+  }
+
+  // P6b — APPOINTMENT_BUFFER (Acuity/provider appointments — catches what the native
+  // table misses when the shop's real appointments live in provider_appointments).
+  const upcomingProviderAppt = upcomingProviderAppointments.find(
+    (a) => a.barber_id === barberId,
+  )
+  if (upcomingProviderAppt) {
+    base.reason = 'APPOINTMENT_BUFFER'
+    base.estimated_free_at = upcomingProviderAppt.start_at
     return base
   }
 
@@ -410,6 +439,7 @@ export async function getShopAvailability(
       data.upcomingAppointments,
       data.states,
       data.assignments,
+      data.providerUpcomingAppointments,
     ),
   )
 

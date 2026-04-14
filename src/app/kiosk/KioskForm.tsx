@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { submitWalkin, checkInWalkin, lookupByPhone } from '@/lib/kiosk/actions'
+import { formatWaitTime } from '@/lib/formatWaitTime'
 import type { KioskBarber } from '@/lib/kiosk/barbers'
+import type { KioskBookingSuggestion } from '@/lib/kiosk/types'
 
 type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
@@ -43,6 +45,8 @@ export function KioskForm({ shopId }: KioskFormProps) {
   const [existingStatus, setExistingStatus] = useState<string | null>(null)
   const [walkinId, setWalkinId] = useState<string | null>(null)
   const [assignedBarberName, setAssignedBarberName] = useState<string | null>(null)
+  const [bookingSuggestion, setBookingSuggestion] = useState<KioskBookingSuggestion | null>(null)
+  const [bookingBannerDismissed, setBookingBannerDismissed] = useState(false)
 
 
   // Auto-reset to form after 30s on non-form screens
@@ -59,6 +63,8 @@ export function KioskForm({ shopId }: KioskFormProps) {
     setExistingStatus(null)
     setWalkinId(null)
     setAssignedBarberName(null)
+    setBookingSuggestion(null)
+    setBookingBannerDismissed(false)
   }, [])
 
   useEffect(() => {
@@ -106,6 +112,8 @@ export function KioskForm({ shopId }: KioskFormProps) {
         setScreen('existing')
       } else {
         setPosition(result.position ?? null)
+        setBookingSuggestion(result.bookingSuggestion ?? null)
+        setBookingBannerDismissed(false)
         setScreen('confirmation')
       }
     } catch {
@@ -162,6 +170,9 @@ export function KioskForm({ shopId }: KioskFormProps) {
   // Confirmation screen
   // -----------------------------------------------------------------------
   if (screen === 'confirmation') {
+    const showBanner =
+      bookingSuggestion?.should_suggest === true && !bookingBannerDismissed
+
     return (
       <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
         <div className="text-6xl mb-4">&#10003;</div>
@@ -172,9 +183,47 @@ export function KioskForm({ shopId }: KioskFormProps) {
           <span className="font-semibold text-secondary-900">{displayName}</span>,
           you are <span className="font-bold text-primary-600">#{position}</span> in the queue.
         </p>
-        <p className="text-sm text-secondary-500 mb-8">
+        <p className="text-sm text-secondary-500 mb-6">
           Watch the TV for your name. The screen will reset shortly.
         </p>
+
+        {/* Booking nudge banner — shown when estimated wait >= 45 min */}
+        {showBanner && bookingSuggestion && (
+          <div className="w-full mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900 mb-1">
+                  {formatWaitTime(bookingSuggestion.estimated_wait_minutes, bookingSuggestion.earliest_slot?.start)}
+                </p>
+                <p className="text-xs text-amber-700 mb-3">
+                  Want to book a future appointment instead?
+                  {bookingSuggestion.earliest_slot && (
+                    <> Next opening: {bookingSuggestion.earliest_slot.barber_name} at{' '}
+                      {new Date(bookingSuggestion.earliest_slot.start).toLocaleTimeString('en-US', {
+                        hour: 'numeric', minute: '2-digit', hour12: true,
+                      })}
+                    </>
+                  )}
+                </p>
+                <a
+                  href={bookingSuggestion.booking_url ?? '/book'}
+                  className="inline-block text-xs font-semibold text-amber-900 bg-amber-200 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Book an Appointment &#8594;
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBookingBannerDismissed(true)}
+                aria-label="Dismiss"
+                className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 mt-0.5"
+              >
+                &#215;
+              </button>
+            </div>
+          </div>
+        )}
+
         <Button variant="outline" onClick={resetToForm}>
           Done
         </Button>

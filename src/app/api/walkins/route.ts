@@ -6,6 +6,7 @@ import { appendEvent, WALKIN_ADDED } from '@/lib/walkin/events'
 import { refreshShopProjection } from '@/lib/walkin/shop_projector'
 import { initiateWalkinOffer } from '@/lib/walkin/walkin_offer'
 import { getEligibleWalkinBarbers } from '@/lib/walkin/eligible_barbers'
+import { getBookingSuggestion } from '@/lib/scheduling/queue-booking-bridge'
 
 export async function GET() {
   const supabase = await createClient()
@@ -70,6 +71,9 @@ export async function POST(request: Request) {
     const adminForOffer = createAdminClient()
     initiateWalkinOffer(adminForOffer, shop_id, data.id).catch(() => {})
 
+    // Fire-and-forget booking suggestion — does not block walkin creation
+    const suggestion = await getBookingSuggestion(adminForOffer, shop_id, position).catch(() => null)
+
     // Debug: log eligibility snapshot so we can diagnose "no ready barbers" reports
     getEligibleWalkinBarbers(adminForOffer, shop_id).then(({ eligible, rejected }) => {
       const tag = `[WALKIN_CREATED shop=${shop_id} walkin_id=${data.id}]`
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
       }
     }).catch(() => {})
 
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json({ ...data, booking_suggestion: suggestion }, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal server error'
     return NextResponse.json({ error: message }, { status: 500 })

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireShopId, checkRequiredEnv } from '@/lib/shop-resolver'
+import { requireShopId } from '@/lib/shop-resolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,7 +8,6 @@ const nyDowShortFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_
 const nyTimeFmt     = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })
 const nyMonthDayFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
 
-/** Default walk-in service duration used to determine if a walk-in can fit before the next appointment. */
 const DEFAULT_WALKIN_MINUTES = 30
 
 function computeOffLabel(offUntilAt: string, now: Date): string {
@@ -28,10 +27,38 @@ export async function GET(request: NextRequest) {
   const now    = new Date()
   const nowIso = now.toISOString()
 
+  // ── Diagnostic: step through each filter to find exactly where rows disappear ──
+  const [d1, d2, d3] = await Promise.all([
+    admin.from('users').select('id', { count: 'exact', head: true }).eq('shop_id', shopId),
+    admin.from('users').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('role', 'barber'),
+    admin.from('users').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('role', 'barber').eq('is_active', true),
+  ])
+  console.log(`[/api/tv] DIAG shopId="${shopId}" (len=${shopId.length})`)
+  console.log(`[/api/tv] DIAG users matching shop_id only: ${d1.count ?? 'ERR'} ${d1.error ? '| err: ' + d1.error.message : ''}`)
+  console.log(`[/api/tv] DIAG + role=barber: ${d2.count ?? 'ERR'} ${d2.error ? '| err: ' + d2.error.message : ''}`)
+  console.log(`[/api/tv] DIAG + is_active=true: ${d3.count ?? 'ERR'} ${d3.error ? '| err: ' + d3.error.message : ''}`)
+
+  // ── Critical: fetch barbers using the same query that works in /api/booking/barbers ──
+  const barbersResult = await admin
+    .from('users')
+    .select('id, first_name, last_name, bio, avatar_url, acuity_calendar_id')
+    .eq('shop_id', shopId)
+    .eq('role', 'barber')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+
+  if (barbersResult.error) {
+    console.error('[/api/tv] BARBERS QUERY FAILED — error:', barbersResult.error)
+    return NextResponse.json({ error: barbersResult.error.message }, { status: 500 })
+  }
+
+  const rawBarbers = barbersResult.data ?? []
+  console.log(`[/api/tv] barbers found: ${rawBarbers.length} for shop_id=${shopId}`)
+
+  // ── Non-critical: fetch supporting data; log errors but never crash the response ──
   const [
     statusResult,
     walkinsResult,
-    barbersResult,
     currentBlocksResult,
     currentApptsResult,
     nextApptsResult,
@@ -45,17 +72,6 @@ export async function GET(request: NextRequest) {
       .eq('shop_id', shopId)
       .order('position', { ascending: true }),
 
-    // Query users table directly with admin client (bypasses RLS).
-    // avatar_url intentionally kept — column exists in initial schema.
-    admin
-      .from('users')
-      .select('id, shop_id, first_name, last_name, avatar_url, display_order, walkin_enabled, photo_x, photo_y')
-      .eq('shop_id', shopId)
-      .eq('role', 'barber')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true }),
-
-    // Currently-active blocks (BLOCKED overrides everything)
     admin
       .from('provider_blocks')
       .select('barber_id, start_at, end_at, note_short')
@@ -63,7 +79,6 @@ export async function GET(request: NextRequest) {
       .lte('start_at', nowIso)
       .gt('end_at', nowIso),
 
-    // Currently-ongoing appointments
     admin
       .from('provider_appointments')
       .select('barber_id, end_at')
@@ -73,7 +88,6 @@ export async function GET(request: NextRequest) {
       .lte('start_at', nowIso)
       .gt('end_at', nowIso),
 
-    // Next upcoming appointment per barber
     admin
       .from('provider_appointments')
       .select('barber_id, start_at, client_name')
@@ -83,7 +97,6 @@ export async function GET(request: NextRequest) {
       .not('status', 'in', '("CANCELLED","DELETED")')
       .order('start_at', { ascending: true }),
 
-    // off_until_at per barber from calendar_connections (Acuity "off" days)
     admin
       .from('calendar_connections')
       .select('barber_id, off_until_at')
@@ -92,38 +105,32 @@ export async function GET(request: NextRequest) {
       .eq('active', true),
   ])
 
+  if (statusResult.error)        console.error('[/api/tv] barber_status error:', statusResult.error.message)
+  if (walkinsResult.error)       console.error('[/api/tv] public_walkins error:', walkinsResult.error.message)
+  if (currentBlocksResult.error) console.error('[/api/tv] provider_blocks error:', currentBlocksResult.error.message)
+  if (currentApptsResult.error)  console.error('[/api/tv] provider_appointments(current) error:', currentApptsResult.error.message)
+  if (nextApptsResult.error)     console.error('[/api/tv] provider_appointments(next) error:', nextApptsResult.error.message)
+  if (calendarConnsResult.error) console.error('[/api/tv] calendar_connections error:', calendarConnsResult.error.message)
+
   const statuses    = statusResult.data ?? []
   const blocks      = currentBlocksResult.data ?? []
   const activeAppts = currentApptsResult.data ?? []
   const nextAppts   = nextApptsResult.data ?? []
   const calConns    = calendarConnsResult.data ?? []
 
-  // If avatar_url caused the query to fail, fall back to minimal columns
-  const rawBarbers = barbersResult.data
-    ?? (await admin
-        .from('users')
-        .select('id, shop_id, first_name, last_name, walkin_enabled, photo_x, photo_y')
-        .eq('shop_id', shopId)
-        .eq('role', 'barber')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true })
-        .then(r => r.data ?? []))
-
-  type RawBarber = { id: string; shop_id: string; first_name: string; last_name: string; avatar_url?: string | null; display_order?: number; walkin_enabled?: boolean | null; photo_x?: number | null; photo_y?: number | null }
+  type RawBarber = { id: string; first_name: string; last_name: string; avatar_url?: string | null; acuity_calendar_id?: string | null }
 
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
     const block      = blocks.find((b) => b.barber_id === u.id)
     const activeAppt = activeAppts.find((a) => a.barber_id === u.id)
     const hasAppt    = !!activeAppt
     const nextAppt   = nextAppts.find((a) => a.barber_id === u.id)
-    const calConn  = calConns.find((c) => c.barber_id === u.id)
+    const calConn    = calConns.find((c) => c.barber_id === u.id)
 
-    const isBlocked      = !!block
-    const rawOffUntilAt  = calConn?.off_until_at ?? null
-    const isOff          = rawOffUntilAt ? new Date(rawOffUntilAt) > now : false
+    const isBlocked     = !!block
+    const rawOffUntilAt = calConn?.off_until_at ?? null
+    const isOff         = rawOffUntilAt ? new Date(rawOffUntilAt) > now : false
 
-    // Compute status from Acuity schedule data (off_until_at, blocks, appointments).
-    // barber_status table is returned separately as barber_statuses for manual overrides.
     const status =
       isBlocked ? 'UNAVAILABLE' :
       hasAppt   ? 'BUSY'        :
@@ -135,11 +142,6 @@ export async function GET(request: NextRequest) {
       hasAppt   ? 'appointment' :
       null
 
-    // free_at = when the barber becomes free.
-    // Priority: block end > active appointment end > null (free now).
-    // Previously this was `block?.end_at ?? null`, which left active-appointment
-    // barbers with free_at=null and caused frontends to fall back to next_appt_at
-    // (the START of the next appointment) instead of the current appointment's END.
     const free_at      = isOff ? null : (block?.end_at ?? activeAppt?.end_at ?? null)
     const off_until_at = isOff ? rawOffUntilAt : null
     const off_label    = isOff ? computeOffLabel(rawOffUntilAt!, now) : null
@@ -148,26 +150,22 @@ export async function GET(request: NextRequest) {
       ? (nextAppt.client_name.split(' ')[0] || null)
       : null
 
-    // barberReadyTime: when the barber is next free (ISO). Equals free_at when busy,
-    // or now when already available.
     const barberReadyAt   = free_at ? new Date(free_at) : now
     const waitTimeMinutes = Math.max(0, Math.round((barberReadyAt.getTime() - now.getTime()) / 60_000))
 
-    // canFitWalkIn: true if a walk-in of DEFAULT_WALKIN_MINUTES can start when the
-    // barber is free and finish before the next scheduled appointment begins.
     const nextApptStartMs = nextAppt?.start_at ? new Date(nextAppt.start_at).getTime() : Infinity
     const canFitWalkIn    = (nextApptStartMs - barberReadyAt.getTime()) / 60_000 >= DEFAULT_WALKIN_MINUTES
 
     return {
       id:               u.id,
-      shop_id:          u.shop_id,
+      shop_id:          shopId,
       first_name:       u.first_name,
       last_name:        u.last_name,
       avatar_url:       u.avatar_url ?? null,
-      display_order:    u.display_order ?? 0,
-      photo_x:          u.photo_x ?? null,
-      photo_y:          u.photo_y ?? null,
-      walkin_eligible:  u.walkin_enabled ?? false,
+      display_order:    0,
+      photo_x:          null,
+      photo_y:          null,
+      walkin_eligible:  false,
       status,
       free_at,
       barber_ready_time: free_at,

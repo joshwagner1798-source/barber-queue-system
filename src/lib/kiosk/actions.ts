@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { validateWalkinTransition } from '@/lib/walkin/validation'
 import { appendEvent, WALKIN_STATUS_CHANGED } from '@/lib/walkin/events'
 import { autoAssignWalkins } from '@/lib/walkin/queue_assignment'
+import { getBookingSuggestion } from '@/lib/scheduling/queue-booking-bridge'
 
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -77,11 +78,19 @@ export async function submitWalkin(input: KioskSubmitInput): Promise<KioskSubmit
   // This is fire-and-forget — the response to the kiosk shouldn't wait.
   autoAssignWalkins(admin, SHOP_ID).catch(() => {})
 
+  // Booking suggestion — check if wait is long enough to nudge toward booking
+  const bookingSuggestion = await getBookingSuggestion(
+    admin,
+    SHOP_ID,
+    result.position,
+  ).catch(() => null)
+
   return {
     success: true,
     walkinId: result.walkin_id,
     position: result.position,
     displayName: result.display_name,
+    bookingSuggestion: bookingSuggestion ?? undefined,
   }
 }
 

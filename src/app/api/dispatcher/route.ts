@@ -5,11 +5,13 @@ import { runDispatcher } from '@/lib/dispatcher/engine'
 
 const SHOP_ID = '00000000-0000-0000-0000-000000000001'
 
-export async function POST(request: NextRequest) {
-  // Auth: require Bearer token matching DISPATCHER_SECRET
+async function handler(request: NextRequest) {
+  // Auth: accept CRON_SECRET (Vercel cron/GET) or DISPATCHER_SECRET (manual POST)
   const auth = request.headers.get('authorization')
-  const secret = process.env.DISPATCHER_SECRET
-  if (!secret || !auth || auth !== `Bearer ${secret}`) {
+  if (
+    auth !== `Bearer ${process.env.CRON_SECRET}` &&
+    auth !== `Bearer ${process.env.DISPATCHER_SECRET}`
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -24,3 +26,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export const GET  = handler
+export const POST = handler

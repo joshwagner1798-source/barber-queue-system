@@ -102,7 +102,7 @@ describe('resolveBarber', () => {
     )
     expect(result.available).toBe(false)
     expect(result.reason).toBe('APPOINTMENT_BUFFER')
-    expect(result.estimated_free_at).toBe(upcoming.end_time)
+    expect(result.estimated_free_at).toBe(upcoming.start_time)
   })
 
   it('returns AVAILABLE when appointment is 45 minutes away (outside buffer)', () => {
