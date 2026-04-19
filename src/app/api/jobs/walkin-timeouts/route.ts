@@ -41,20 +41,20 @@ export async function GET(request: NextRequest) {
     .from('walkins')
     .select('id')
     .eq('shop_id', shopId)
-    .eq('status', 'CALLED')
+    .eq('status', 'called')
     .lt('called_at', calledCutoff)
 
   type WRow = { id: string }
   const noShowIds: string[] = []
 
   for (const w of (expiredCalled ?? []) as unknown as WRow[]) {
-    // Optimistic lock: only update if still CALLED (guard against races)
+    // Optimistic lock: only update if still called (guard against races)
     const { error } = await admin
       .from('walkins')
       // @ts-expect-error — Supabase generated types resolve update param to never
-      .update({ status: 'NO_SHOW' })
+      .update({ status: 'no_show' })
       .eq('id', w.id)
-      .eq('status', 'CALLED')
+      .eq('status', 'called')
 
     if (error) continue
 
