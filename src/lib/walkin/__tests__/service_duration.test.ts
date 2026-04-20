@@ -27,4 +27,8 @@ describe('getWalkinDuration', () => {
   it('returns shop default when service_durations map is absent', () => {
     expect(getWalkinDuration({ service_type: 'beard' }, defaultSettings)).toBe(30)
   })
+
+  it('returns shop default when service_type is undefined', () => {
+    expect(getWalkinDuration({}, defaultSettings)).toBe(30)
+  })
 })

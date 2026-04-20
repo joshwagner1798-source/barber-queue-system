@@ -8,8 +8,7 @@ export function getWalkinDuration(
   walkin: { service_type?: string | null },
   shopSettings: ShopDurationSettings,
 ): number {
-  if (walkin.service_type && shopSettings.service_durations?.[walkin.service_type]) {
-    return shopSettings.service_durations[walkin.service_type]
-  }
+  const specific = walkin.service_type ? shopSettings.service_durations?.[walkin.service_type] : undefined
+  if (specific && specific > 0) return specific
   return shopSettings.default_walkin_minutes
 }
