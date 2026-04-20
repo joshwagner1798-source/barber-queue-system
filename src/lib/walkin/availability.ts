@@ -386,7 +386,7 @@ export function resolveBarber(
   )
   if (upcomingAppt) {
     const capacityCheck = canFitWalkin(now, new Date(upcomingAppt.start_time), WALKIN_ESTIMATED_DURATION_MINUTES, WALKIN_TRANSITION_BUFFER_MINUTES)
-    if (!capacityCheck.fits) {
+    if (!capacityCheck.fits) { // capacityCheck.reason only available on fits: false branch
       base.reason = 'APPOINTMENT_BUFFER'
       base.estimated_free_at = upcomingAppt.start_time
       return base
@@ -399,7 +399,7 @@ export function resolveBarber(
   )
   if (upcomingProviderAppt) {
     const capacityCheck = canFitWalkin(now, new Date(upcomingProviderAppt.start_at), WALKIN_ESTIMATED_DURATION_MINUTES, WALKIN_TRANSITION_BUFFER_MINUTES)
-    if (!capacityCheck.fits) {
+    if (!capacityCheck.fits) { // capacityCheck.reason only available on fits: false branch
       base.reason = 'APPOINTMENT_BUFFER'
       base.estimated_free_at = upcomingProviderAppt.start_at
       return base
