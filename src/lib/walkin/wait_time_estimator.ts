@@ -5,6 +5,7 @@ import {
   type ShopAvailability,
   type BarberAvailability,
 } from './availability'
+import { getWalkinDuration, type ShopDurationSettings } from './service_duration'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -247,6 +248,7 @@ export function estimateQueue(
   walkinEnabledIds?: Set<string>,
   /** Acuity-synced free_at per barber (barber_status.free_at). */
   acuityFreeAt?: Map<string, string | null>,
+  shopDuration: ShopDurationSettings = { default_walkin_minutes: 30 },  // NEW
 ): QueueEstimate {
   const now = new Date(availability.calculated_at)
   const durations = buildDurationLookup(services, barberServices)
@@ -302,7 +304,8 @@ export function estimateQueue(
     // Wait time: formula
     // i = 0-indexed rank in the WAITING queue (not DB position, which is 1-indexed)
     // -----------------------------------------------------------------------
-    const waitMinutes = base + i * AVG_WALKIN_MINUTES
+    const walkinDuration = getWalkinDuration(walkin, shopDuration)
+    const waitMinutes = base + i * walkinDuration
     const estimatedStartAt = new Date(
       now.getTime() + waitMinutes * 60_000,
     ).toISOString()
@@ -381,7 +384,7 @@ export async function computeWalkinWaitMinutes(
   walkinPositionZeroIndexed: number,
   now: Date = new Date(),
 ): Promise<number | null> {
-  const [availability, walkinBarbers, statusResult] = await Promise.all([
+  const [availability, walkinBarbers, statusResult, shopSettingsResult] = await Promise.all([
     getShopAvailability(supabase, shopId),
 
     supabase
@@ -396,6 +399,12 @@ export async function computeWalkinWaitMinutes(
       .from('barber_status')
       .select('barber_id, free_at')
       .eq('shop_id', shopId),
+
+    supabase
+      .from('shop_settings')
+      .select('default_walkin_minutes')
+      .eq('shop_id', shopId)
+      .maybeSingle(),
   ])
 
   type IdRow = { id: string }
@@ -417,8 +426,12 @@ export async function computeWalkinWaitMinutes(
     acuityFreeAt,
   )
 
+  type ShopSettingsRow = { default_walkin_minutes: number }
+  const shopSs = shopSettingsResult.data as unknown as ShopSettingsRow | null
+  const walkinDuration = shopSs?.default_walkin_minutes ?? 30
+
   if (base === null) return null
-  return base + walkinPositionZeroIndexed * AVG_WALKIN_MINUTES
+  return base + walkinPositionZeroIndexed * walkinDuration
 }
 
 // ---------------------------------------------------------------------------
@@ -436,6 +449,7 @@ export async function getQueueEstimate(
     barberServicesResult,
     walkinBarbers,
     statusResult,
+    shopSettingsResult,
   ] = await Promise.all([
     getShopAvailability(supabase, shopId),
 
@@ -468,6 +482,13 @@ export async function getQueueEstimate(
       .from('barber_status')
       .select('barber_id, free_at')
       .eq('shop_id', shopId),
+
+    // Shop duration settings for wait-time formula
+    supabase
+      .from('shop_settings')
+      .select('default_walkin_minutes')
+      .eq('shop_id', shopId)
+      .maybeSingle(),
   ])
 
   type IdRow = { id: string }
@@ -487,6 +508,12 @@ export async function getQueueEstimate(
   const barberServices =
     (barberServicesResult.data ?? []) as unknown as BarberServiceRow[]
 
+  type ShopSettingsRow = { default_walkin_minutes: number }
+  const shopSs = shopSettingsResult.data as unknown as ShopSettingsRow | null
+  const shopDuration: ShopDurationSettings = {
+    default_walkin_minutes: shopSs?.default_walkin_minutes ?? 30,
+  }
+
   return estimateQueue(
     availability,
     waitingQueue,
@@ -494,5 +521,6 @@ export async function getQueueEstimate(
     barberServices,
     walkinEnabledIds,
     acuityFreeAt,
+    shopDuration,  // NEW
   )
 }

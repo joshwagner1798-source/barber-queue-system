@@ -440,6 +440,26 @@ describe('estimateQueue — wait formula', () => {
 
     expect(result.next_available_barber).toBeNull()
   })
+
+  it('uses shopDuration.default_walkin_minutes for wait formula when provided', () => {
+    const availability = shopAvailability([availableBarber(BARBER_A_ID, 'Alice')])
+    const queue = [
+      walkin(1, { preference_type: 'ANY' }),
+      walkin(2, { preference_type: 'ANY' }),
+    ]
+    // With 45-min default, second person waits 0 + 1*45 = 45 min
+    const result = estimateQueue(
+      availability,
+      queue as any,
+      [],
+      [],
+      undefined,
+      undefined,
+      { default_walkin_minutes: 45 },
+    )
+    expect(result.estimates[0].estimated_wait_minutes).toBe(0)
+    expect(result.estimates[1].estimated_wait_minutes).toBe(45)
+  })
 })
 
 // ---------------------------------------------------------------------------
