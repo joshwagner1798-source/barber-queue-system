@@ -33,6 +33,8 @@ export interface EligibleWalkinBarber {
   name: string
   /** Minutes until barber is free to start a walk-in. 0 = available right now. */
   readyMinutes: number
+  /** Minutes until barber's next hard commitment. Populated by canFitWalkin in Task 5. */
+  windowMinutes?: number
 }
 
 export interface RejectedWalkinBarber {

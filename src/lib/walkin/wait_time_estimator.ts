@@ -28,6 +28,10 @@ const SIMULATION_FALLBACK_MINUTES = 30
 
 type BarberServiceRow = Database['public']['Tables']['barber_services']['Row']
 
+export type WaitTimeResult =
+  | { available: true;  estimatedMinutes: number }
+  | { available: false; reason: 'no_eligible_barbers' | 'shop_closed' }
+
 export interface WalkinEstimate {
   walkin_id: string
   position: number
