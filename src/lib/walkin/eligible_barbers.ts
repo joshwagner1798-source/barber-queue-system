@@ -20,6 +20,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, BusinessHours } from '@/types/database'
 import { getShopLocalTime, getBarberHoursForDay } from './availability'
+import { canFitWalkin } from './capacity_check'
 
 // Minutes before an upcoming appointment where we block new walk-in starts
 const WALKIN_ELIGIBILITY_BUFFER_MINUTES = 15
@@ -81,8 +82,10 @@ export async function getEligibleWalkinBarbers(
   now: Date = new Date(),
 ): Promise<WalkinEligibilityResult> {
   const nowIso = now.toISOString()
+  // Compute buffer using safe default (35 min = 30 + 5). WALKIN_ELIGIBILITY_BUFFER_MINUTES kept for reference.
+  // After shop_settings loads, the canFitWalkin check below enforces the exact threshold.
   const bufferCutoff = new Date(
-    now.getTime() + WALKIN_ELIGIBILITY_BUFFER_MINUTES * 60_000,
+    now.getTime() + Math.max(WALKIN_ELIGIBILITY_BUFFER_MINUTES, 35) * 60_000,
   ).toISOString()
 
   const [
@@ -94,6 +97,7 @@ export async function getEligibleWalkinBarbers(
     calendarConnsResult,
     shopResult,
     businessHoursResult,
+    shopSettingsResult,
   ] = await Promise.all([
     // All active barbers + walkin_enabled flag
     supabase
@@ -150,7 +154,19 @@ export async function getEligibleWalkinBarbers(
 
     // Business hours for schedule check (used only when no Acuity override)
     supabase.from('business_hours').select('*').eq('shop_id', shopId),
+
+    // Shop duration settings for capacity check
+    supabase
+      .from('shop_settings')
+      .select('default_walkin_minutes, transition_buffer_minutes')
+      .eq('shop_id', shopId)
+      .maybeSingle(),
   ])
+
+  type ShopSettingsRow = { default_walkin_minutes: number; transition_buffer_minutes: number }
+  const shopSs = shopSettingsResult.data as unknown as ShopSettingsRow | null
+  const estimatedDuration = shopSs?.default_walkin_minutes ?? 30
+  const transitionBuffer = shopSs?.transition_buffer_minutes ?? 5
 
   // ── Build lookup maps ────────────────────────────────────────────────────
 
@@ -300,24 +316,33 @@ export async function getEligibleWalkinBarbers(
       }
     }
 
-    // ── 7. Appointment buffer check (applies to ALL barbers, even Acuity FREE) ──
+    // ── 7. Capacity check — can barber fit a walk-in before next appointment? ──
     const nextAppt = nextApptMap.get(barber.id)
     if (nextAppt) {
-      const minsToAppt = Math.max(
-        0,
-        Math.round((new Date(nextAppt.start_at).getTime() - now.getTime()) / 60_000),
+      const result = canFitWalkin(
+        now,
+        new Date(nextAppt.start_at),
+        estimatedDuration,
+        transitionBuffer,
       )
-      rejected.push({
-        barberId: barber.id,
-        name,
-        reasons: [
-          `Upcoming appointment starts in ${minsToAppt}min (start_at=${nextAppt.start_at}) — within ${WALKIN_ELIGIBILITY_BUFFER_MINUTES}-min buffer`,
-        ],
-      })
+      if (!result.fits) {
+        const minsToAppt = Math.round(result.windowMinutes)
+        console.log(`[capacity] eligible_barbers: barber ${barber.id} (${name}) blocked — window ${minsToAppt}min, need ${estimatedDuration + transitionBuffer}min`)
+        rejected.push({
+          barberId: barber.id,
+          name,
+          reasons: [
+            `Appointment starts in ${minsToAppt}min — need ${estimatedDuration + transitionBuffer}min to complete walk-in`,
+          ],
+        })
+        continue
+      }
+      // Appointment is far enough away — barber is eligible, record the window
+      eligible.push({ barberId: barber.id, name, readyMinutes, windowMinutes: result.windowMinutes })
       continue
     }
 
-    // ── Eligible ─────────────────────────────────────────────────────────
+    // ── Eligible (no upcoming appointment in range) ───────────────────────
     eligible.push({ barberId: barber.id, name, readyMinutes })
   }
 
