@@ -15,6 +15,10 @@ import { canFitWalkin } from './capacity_check'
 
 /** Minutes before a booked appointment where a barber is blocked for walk-ins. */
 export const WALKIN_APPOINTMENT_BUFFER_MINUTES = 30
+/** Estimated walk-in service duration in minutes (fallback before shop_settings is wired here). */
+const WALKIN_ESTIMATED_DURATION_MINUTES = 30
+/** Transition buffer in minutes between services. */
+const WALKIN_TRANSITION_BUFFER_MINUTES = 5
 
 // ---------------------------------------------------------------------------
 // Output types
@@ -113,6 +117,7 @@ async function fetchAvailabilityData(
   const now = new Date()
   const nowISO = now.toISOString()
   const bufferCutoffISO = new Date(
+    // Widen by transition buffer so we catch appointments within duration + buffer window
     now.getTime() + Math.max(WALKIN_APPOINTMENT_BUFFER_MINUTES, 35) * 60_000,
   ).toISOString()
 
@@ -257,6 +262,7 @@ export function resolveBarber(
   assignments: AssignmentRow[],
   /** Acuity-synced upcoming appointments within the buffer window (provider_appointments table). */
   upcomingProviderAppointments: { barber_id: string; start_at: string }[] = [],
+  now: Date = new Date(),
 ): BarberAvailability {
   const base: BarberAvailability = {
     barber_id: barberId,
@@ -379,7 +385,7 @@ export function resolveBarber(
     (a) => a.barber_id === barberId,
   )
   if (upcomingAppt) {
-    const capacityCheck = canFitWalkin(new Date(), new Date(upcomingAppt.start_time), 30, 5)
+    const capacityCheck = canFitWalkin(now, new Date(upcomingAppt.start_time), WALKIN_ESTIMATED_DURATION_MINUTES, WALKIN_TRANSITION_BUFFER_MINUTES)
     if (!capacityCheck.fits) {
       base.reason = 'APPOINTMENT_BUFFER'
       base.estimated_free_at = upcomingAppt.start_time
@@ -392,7 +398,7 @@ export function resolveBarber(
     (a) => a.barber_id === barberId,
   )
   if (upcomingProviderAppt) {
-    const capacityCheck = canFitWalkin(new Date(), new Date(upcomingProviderAppt.start_at), 30, 5)
+    const capacityCheck = canFitWalkin(now, new Date(upcomingProviderAppt.start_at), WALKIN_ESTIMATED_DURATION_MINUTES, WALKIN_TRANSITION_BUFFER_MINUTES)
     if (!capacityCheck.fits) {
       base.reason = 'APPOINTMENT_BUFFER'
       base.estimated_free_at = upcomingProviderAppt.start_at
@@ -442,6 +448,7 @@ export async function getShopAvailability(
       data.states,
       data.assignments,
       data.providerUpcomingAppointments,
+      now,
     ),
   )
 
