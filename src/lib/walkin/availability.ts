@@ -7,6 +7,7 @@ import type {
   Appointment,
   BarberState,
 } from '@/types/database'
+import { canFitWalkin } from './capacity_check'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -112,7 +113,7 @@ async function fetchAvailabilityData(
   const now = new Date()
   const nowISO = now.toISOString()
   const bufferCutoffISO = new Date(
-    now.getTime() + WALKIN_APPOINTMENT_BUFFER_MINUTES * 60_000,
+    now.getTime() + Math.max(WALKIN_APPOINTMENT_BUFFER_MINUTES, 35) * 60_000,
   ).toISOString()
 
   const [
@@ -373,29 +374,30 @@ export function resolveBarber(
     return base
   }
 
-  // P6 — APPOINTMENT_BUFFER (30 min safety rule — native appointments table)
-  // The barber is free right now but has an appointment starting soon.
-  // estimated_free_at points to when they'll next be free after that appointment.
-  // Use start_time (not end_time) so downstream queue logic knows the barber
-  // is available from now until the appointment starts, not until it ends.
+  // P6 — APPOINTMENT_BUFFER (native appointments table)
   const upcomingAppt = upcomingAppointments.find(
     (a) => a.barber_id === barberId,
   )
   if (upcomingAppt) {
-    base.reason = 'APPOINTMENT_BUFFER'
-    base.estimated_free_at = upcomingAppt.start_time
-    return base
+    const capacityCheck = canFitWalkin(new Date(), new Date(upcomingAppt.start_time), 30, 5)
+    if (!capacityCheck.fits) {
+      base.reason = 'APPOINTMENT_BUFFER'
+      base.estimated_free_at = upcomingAppt.start_time
+      return base
+    }
   }
 
-  // P6b — APPOINTMENT_BUFFER (Acuity/provider appointments — catches what the native
-  // table misses when the shop's real appointments live in provider_appointments).
+  // P6b — APPOINTMENT_BUFFER (Acuity/provider appointments)
   const upcomingProviderAppt = upcomingProviderAppointments.find(
     (a) => a.barber_id === barberId,
   )
   if (upcomingProviderAppt) {
-    base.reason = 'APPOINTMENT_BUFFER'
-    base.estimated_free_at = upcomingProviderAppt.start_at
-    return base
+    const capacityCheck = canFitWalkin(new Date(), new Date(upcomingProviderAppt.start_at), 30, 5)
+    if (!capacityCheck.fits) {
+      base.reason = 'APPOINTMENT_BUFFER'
+      base.estimated_free_at = upcomingProviderAppt.start_at
+      return base
+    }
   }
 
   // P7 — AVAILABLE (no conflicts)
