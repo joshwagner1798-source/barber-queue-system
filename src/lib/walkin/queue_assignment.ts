@@ -2,6 +2,8 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Walkin, Appointment, Service } from '@/types/database'
 import { getShopAvailability, type BarberAvailability } from './availability'
 import { appendEvent, WALKIN_AUTO_ASSIGNED } from './events'
+import { canFitWalkin } from './capacity_check'
+import { getWalkinDuration, type ShopDurationSettings } from './service_duration'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -58,26 +60,31 @@ function getServiceDuration(
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true if the barber has a booked appointment starting within
- * `durationMinutes + buffer` from now.  Assigning a walk-in that can't
- * finish before the appointment would create a conflict.
+ * Returns true if the barber cannot fit a walk-in before their next booked appointment.
+ * Uses canFitWalkin formula: windowMinutes > durationMinutes + transitionBuffer.
+ * APPOINTMENT_BUFFER_MINUTES kept for reference until Task 10 cleanup.
  */
 function hasAppointmentConflict(
   barberId: string,
   durationMinutes: number,
+  transitionBuffer: number,
   upcomingAppointments: Appointment[],
   now: Date,
 ): boolean {
-  const cutoff = new Date(
-    now.getTime() + (durationMinutes + APPOINTMENT_BUFFER_MINUTES) * 60_000,
+  const barberAppts = upcomingAppointments.filter(
+    (a) => a.barber_id === barberId && new Date(a.end_time) > now,
   )
+  if (barberAppts.length === 0) return false
 
-  return upcomingAppointments.some(
-    (a) =>
-      a.barber_id === barberId &&
-      new Date(a.start_time) <= cutoff &&
-      new Date(a.end_time) > now,
-  )
+  const nextApptStart = barberAppts
+    .map((a) => new Date(a.start_time))
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+
+  const result = canFitWalkin(now, nextApptStart, durationMinutes, transitionBuffer)
+  if (!result.fits) {
+    console.log(`[capacity] hasAppointmentConflict: barber ${barberId} blocked — window ${Math.round(result.windowMinutes)}min, need ${durationMinutes + transitionBuffer}min`)
+  }
+  return !result.fits
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +109,7 @@ export function findNextWalkinForBarber(
   services: Service[],
   barberServices: BarberServiceRow[],
   now: Date,
+  shopDuration: ShopDurationSettings = { default_walkin_minutes: 30, transition_buffer_minutes: 5 },
 ): AssignmentSuggestion | null {
   if (!barber.available) return null
 
@@ -116,8 +124,9 @@ export function findNextWalkinForBarber(
       services,
       barberServices,
     )
+    const transitionBuffer = shopDuration.transition_buffer_minutes ?? 5
 
-    if (hasAppointmentConflict(barberId, duration, upcomingAppointments, now)) {
+    if (hasAppointmentConflict(barberId, duration, transitionBuffer, upcomingAppointments, now)) {
       return null
     }
 
@@ -206,13 +215,27 @@ export async function processBarberAvailable(
     return { assigned: false, reason: 'Barber is not eligible for walk-in assignments (walkin_enabled=false)' }
   }
 
-  // 0b. Block assignment if barber has an Acuity appointment within the buffer window.
-  //     This check uses provider_appointments (the authoritative source for this shop)
-  //     so it fires even when the native appointments table is empty.
-  //     Applies even if the barber manually forced themselves AVAILABLE.
+  // 0b. Block assignment if barber cannot fit a walk-in before their next Acuity appointment.
+  //     Fetches shop settings to use configured duration + buffer (falls back to 30+5 if absent).
+  //     WALKIN_PROVIDER_BUFFER_MINUTES kept for reference until Task 10 cleanup.
   {
     const now = new Date()
-    const bufferCutoff = new Date(now.getTime() + WALKIN_PROVIDER_BUFFER_MINUTES * 60_000).toISOString()
+
+    const { data: shopSettingsData } = await supabase
+      .from('shop_settings')
+      .select('default_walkin_minutes, transition_buffer_minutes')
+      .eq('shop_id', shopId)
+      .maybeSingle()
+
+    type ShopSettingsRow = { default_walkin_minutes: number; transition_buffer_minutes: number }
+    const ss = shopSettingsData as unknown as ShopSettingsRow | null
+    const estimatedDuration = ss?.default_walkin_minutes ?? 30
+    const transitionBuffer = ss?.transition_buffer_minutes ?? 5
+
+    // Query window: use whichever is more conservative (safety net during rollout)
+    const effectiveWindow = Math.max(WALKIN_PROVIDER_BUFFER_MINUTES, estimatedDuration + transitionBuffer)
+    const bufferCutoff = new Date(now.getTime() + effectiveWindow * 60_000).toISOString()
+
     const { data: soonApptData } = await supabase
       .from('provider_appointments')
       .select('barber_id, start_at')
@@ -227,9 +250,13 @@ export async function processBarberAvailable(
     type SoonApptRow = { barber_id: string; start_at: string }
     const soonAppt = (soonApptData as unknown as SoonApptRow[] | null)?.[0]
     if (soonAppt) {
-      return {
-        assigned: false,
-        reason: `Barber has an appointment within ${WALKIN_PROVIDER_BUFFER_MINUTES} minutes (${soonAppt.start_at}) — skipping walk-in assignment`,
+      const result = canFitWalkin(now, new Date(soonAppt.start_at), estimatedDuration, transitionBuffer)
+      if (!result.fits) {
+        console.log(`[capacity] processBarberAvailable: barber ${barberId} blocked — window ${Math.round(result.windowMinutes)}min, need ${estimatedDuration + transitionBuffer}min, next appt ${soonAppt.start_at}`)
+        return {
+          assigned: false,
+          reason: `Barber cannot fit a walk-in before next appointment in ~${Math.round(result.windowMinutes)}min (need ${estimatedDuration + transitionBuffer}min)`,
+        }
       }
     }
   }
@@ -381,23 +408,40 @@ export async function autoAssignWalkins(
 
   if (availableBarberIds.length === 0) return result
 
-  // 1b. Fetch all barbers who have an Acuity appointment within the buffer window.
-  //     Single query for the whole shop — far cheaper than per-barber queries.
-  //     barber_status may be up to 60 seconds stale; this real-time check closes the gap.
-  const bufferCutoff = new Date(now.getTime() + WALKIN_PROVIDER_BUFFER_MINUTES * 60_000).toISOString()
+  // 1b. Fetch shop settings and find barbers who can't fit a walk-in before their next appointment.
+  //     Uses canFitWalkin formula. WALKIN_PROVIDER_BUFFER_MINUTES kept as fallback until Task 10.
+  const { data: shopSettingsData } = await supabase
+    .from('shop_settings')
+    .select('default_walkin_minutes, transition_buffer_minutes')
+    .eq('shop_id', shopId)
+    .maybeSingle()
+
+  type ShopSettingsRow = { default_walkin_minutes: number; transition_buffer_minutes: number }
+  const shopSs = shopSettingsData as unknown as ShopSettingsRow | null
+  const shopEstimatedDuration = shopSs?.default_walkin_minutes ?? 30
+  const shopTransitionBuffer = shopSs?.transition_buffer_minutes ?? 5
+
+  // Query window: whichever is more conservative (safety net during rollout)
+  const effectiveWindow = Math.max(WALKIN_PROVIDER_BUFFER_MINUTES, shopEstimatedDuration + shopTransitionBuffer)
+  const bufferCutoff = new Date(now.getTime() + effectiveWindow * 60_000).toISOString()
   const { data: soonApptData } = await supabase
     .from('provider_appointments')
-    .select('barber_id')
+    .select('barber_id, start_at')
     .eq('shop_id', shopId)
     .eq('kind', 'appointment')
     .not('status', 'in', '("CANCELLED","DELETED")')
     .gt('start_at', now.toISOString())
     .lte('start_at', bufferCutoff)
 
-  type SoonApptBarber = { barber_id: string }
-  const soonApptBarberIds = new Set(
-    (soonApptData ?? []).map((a) => (a as unknown as SoonApptBarber).barber_id),
-  )
+  type SoonApptBarber = { barber_id: string; start_at: string }
+  const soonApptBarberIds = new Set<string>()
+  for (const a of (soonApptData ?? []) as unknown as SoonApptBarber[]) {
+    const apptResult = canFitWalkin(now, new Date(a.start_at), shopEstimatedDuration, shopTransitionBuffer)
+    if (!apptResult.fits) {
+      console.log(`[capacity] autoAssignWalkins: barber ${a.barber_id} blocked — window ${Math.round(apptResult.windowMinutes)}min, need ${shopEstimatedDuration + shopTransitionBuffer}min`)
+      soonApptBarberIds.add(a.barber_id)
+    }
+  }
 
   // 2. For each available barber, try to assign next walk-in
   for (const barberId of availableBarberIds) {

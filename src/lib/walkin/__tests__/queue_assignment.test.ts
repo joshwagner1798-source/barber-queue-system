@@ -145,6 +145,39 @@ describe('findNextWalkinForBarber', () => {
     expect(result!.walkin_id).toBe('walkin-1')
   })
 
+  it('blocks assignment when appointment starts in 25 min (need 35)', () => {
+    const queue = [walkin(1, { preference_type: 'ANY' })]
+    const appts = [appointment(BARBER_A_ID, 25, 30)] // starts 25 min from NOW
+
+    const result = findNextWalkinForBarber(
+      BARBER_A_ID,
+      availableBarber(BARBER_A_ID, 'Alice'),
+      queue,
+      appts,
+      [SERVICE_CUT],
+      EMPTY_BARBER_SERVICES,
+      NOW,
+    )
+    expect(result).toBeNull()
+  })
+
+  it('allows assignment when appointment starts in 36 min (need 35)', () => {
+    const queue = [walkin(1, { preference_type: 'ANY' })]
+    const appts = [appointment(BARBER_A_ID, 36, 30)] // starts 36 min from NOW
+
+    const result = findNextWalkinForBarber(
+      BARBER_A_ID,
+      availableBarber(BARBER_A_ID, 'Alice'),
+      queue,
+      appts,
+      [SERVICE_CUT],
+      EMPTY_BARBER_SERVICES,
+      NOW,
+    )
+    expect(result).not.toBeNull()
+    expect(result!.barber_id).toBe(BARBER_A_ID)
+  })
+
   // -----------------------------------------------------------------------
   // Barber not available → no assignment
   // -----------------------------------------------------------------------
