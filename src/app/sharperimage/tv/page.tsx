@@ -9,7 +9,8 @@ type Props = {
 
 export default async function SharperImageTVPage({ searchParams }: Props) {
   const params = await searchParams
-  const shopId = params.shop_id ?? process.env.DEFAULT_SHOP_ID ?? ''
+  const SHOP_ID = '70467794-c7ce-47f2-8c62-bcb5bb19e31e'
+  const shopId = params.shop_id ?? SHOP_ID
 
   const admin = createAdminClient()
   const { data } = await admin
