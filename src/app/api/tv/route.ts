@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireShopId, checkRequiredEnv } from '@/lib/shop-resolver'
 import { getShopLocalTime, getBarberHoursForDay } from '@/lib/walkin/availability'
-import { expireStaleWalkins } from '@/lib/walkin/queue_assignment'
 import type { BusinessHours } from '@/types/database'
 
 // ── NY timezone formatters (server-side) ─────────────────────────────────────
@@ -66,9 +65,7 @@ export async function GET(request: NextRequest) {
   const admin  = createAdminClient()
   const now    = new Date()
 
-  // Expire walkins that have been waiting > 60 minutes (fire-and-forget)
-  expireStaleWalkins(admin, shopId).catch(() => {})
-  const nowIso = now.toISOString()
+const nowIso = now.toISOString()
   // Walk-ins older than 1 hour are considered expired and excluded from TV display
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
 
