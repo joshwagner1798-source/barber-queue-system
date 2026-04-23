@@ -40,12 +40,10 @@ export async function GET(request: NextRequest) {
 
   // ── Critical: fetch barbers using the same query that works in /api/booking/barbers ──
   const barbersResult = await admin
-    .from('users')
-    .select('id, first_name, last_name, bio, avatar_url, acuity_calendar_id')
-    .eq('shop_id', shopId)
-    .eq('role', 'barber')
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
+  .from('public_barbers')
+  .select('id, first_name, last_name, avatar_url, acuity_calendar_id, display_order, walkin_eligible')
+  .eq('shop_id', shopId)
+  .order('display_order', { ascending: true })
 
   if (barbersResult.error) {
     console.error('[/api/tv] BARBERS QUERY FAILED — error:', barbersResult.error)
@@ -118,8 +116,15 @@ export async function GET(request: NextRequest) {
   const nextAppts   = nextApptsResult.data ?? []
   const calConns    = calendarConnsResult.data ?? []
 
-  type RawBarber = { id: string; first_name: string; last_name: string; avatar_url?: string | null; acuity_calendar_id?: string | null }
-
+  type RawBarber = { 
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url?: string | null
+  acuity_calendar_id?: string | null
+  display_order?: number | null
+  walkin_eligible?: boolean | null
+}
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
     const block      = blocks.find((b) => b.barber_id === u.id)
     const activeAppt = activeAppts.find((a) => a.barber_id === u.id)
@@ -162,10 +167,10 @@ export async function GET(request: NextRequest) {
       first_name:       u.first_name,
       last_name:        u.last_name,
       avatar_url:       u.avatar_url ?? null,
-      display_order:    0,
+      display_order:    (u as any).display_order ?? 0,
       photo_x:          null,
       photo_y:          null,
-      walkin_eligible:  false,
+      walkin_eligible:  (u as any).walkin_eligible ?? false,
       status,
       free_at,
       barber_ready_time: free_at,
