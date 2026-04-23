@@ -332,5 +332,11 @@ export async function GET(request: NextRequest) {
     barbers,
     shop_booking_url:             shopBookingUrl,
     first_available_photo_url:    firstAvailablePhotoUrl,
+    _debug: {
+      shopId,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT_SET',
+      defaultShopIdEnv: process.env.DEFAULT_SHOP_ID ?? 'NOT_SET',
+      barberCount: barbers.length,
+    },
   })
 }
