@@ -38,10 +38,10 @@ export async function GET(request: NextRequest) {
   console.log(`[/api/tv] DIAG + role=barber: ${d2.count ?? 'ERR'} ${d2.error ? '| err: ' + d2.error.message : ''}`)
   console.log(`[/api/tv] DIAG + is_active=true: ${d3.count ?? 'ERR'} ${d3.error ? '| err: ' + d3.error.message : ''}`)
 
-  // ── Critical: fetch barbers using the same query that works in /api/booking/barbers ──
+  // ── Fetch barbers from public_barbers view (only columns the view actually exposes) ──
   const barbersResult = await admin
   .from('public_barbers')
-  .select('id, first_name, last_name, avatar_url, acuity_calendar_id, display_order, walkin_eligible')
+  .select('id, shop_id, first_name, last_name, avatar_url, display_order')
   .eq('shop_id', shopId)
   .order('display_order', { ascending: true })
 
@@ -116,15 +116,13 @@ export async function GET(request: NextRequest) {
   const nextAppts   = nextApptsResult.data ?? []
   const calConns    = calendarConnsResult.data ?? []
 
-  type RawBarber = { 
-  id: string
-  first_name: string
-  last_name: string
-  avatar_url?: string | null
-  acuity_calendar_id?: string | null
-  display_order?: number | null
-  walkin_eligible?: boolean | null
-}
+  type RawBarber = {
+    id: string
+    first_name: string
+    last_name: string
+    avatar_url?: string | null
+    display_order?: number | null
+  }
   const barbers = (rawBarbers as unknown as RawBarber[]).map((u) => {
     const block      = blocks.find((b) => b.barber_id === u.id)
     const activeAppt = activeAppts.find((a) => a.barber_id === u.id)
@@ -167,10 +165,10 @@ export async function GET(request: NextRequest) {
       first_name:       u.first_name,
       last_name:        u.last_name,
       avatar_url:       u.avatar_url ?? null,
-      display_order:    (u as any).display_order ?? 0,
+      display_order:    u.display_order ?? 0,
       photo_x:          null,
       photo_y:          null,
-      walkin_eligible:  (u as any).walkin_eligible ?? false,
+      walkin_eligible:  false,
       status,
       free_at,
       barber_ready_time: free_at,
