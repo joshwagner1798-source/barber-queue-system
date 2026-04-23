@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     admin.from('users').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('role', 'barber'),
     admin.from('users').select('id', { count: 'exact', head: true }).eq('shop_id', shopId).eq('role', 'barber').eq('is_active', true),
   ])
-  console.log(`[/api/tv] DIAG shopId="${shopId}" (len=${shopId.length})`)
+  console.log(`[/api/tv] DIAG shopId="${shopId}" (len=${shopId.length}) supabaseUrl="${process.env.NEXT_PUBLIC_SUPABASE_URL}"`)
   console.log(`[/api/tv] DIAG users matching shop_id only: ${d1.count ?? 'ERR'} ${d1.error ? '| err: ' + d1.error.message : ''}`)
   console.log(`[/api/tv] DIAG + role=barber: ${d2.count ?? 'ERR'} ${d2.error ? '| err: ' + d2.error.message : ''}`)
   console.log(`[/api/tv] DIAG + is_active=true: ${d3.count ?? 'ERR'} ${d3.error ? '| err: ' + d3.error.message : ''}`)
@@ -189,6 +189,13 @@ export async function GET(request: NextRequest) {
       barber_statuses: statuses,
       walkins: walkinsResult.data ?? [],
       barbers,
+      _debug: {
+        shopId,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT SET',
+        defaultShopIdSet: !!process.env.DEFAULT_SHOP_ID,
+        barberCount: barbers.length,
+        diagCounts: { allUsers: d1.count, barberRole: d2.count, activeBarbers: d3.count },
+      },
     },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } },
   )
