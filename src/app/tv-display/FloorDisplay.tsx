@@ -128,17 +128,25 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
 
   // Which barber card has the in-card action slot open
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
       const url = shopId ? `/api/tv?shop_id=${encodeURIComponent(shopId)}` : '/api/tv'
       const res = await fetch(url)
-      if (!res.ok) return
+      if (!res.ok) {
+        const body = await res.text()
+        setFetchError(`HTTP ${res.status}: ${body.slice(0, 300)}`)
+        return
+      }
       const data = await res.json()
+      setFetchError(null)
       setStatuses(data.barber_statuses ?? [])
       setWalkins(data.walkins ?? [])
       setBarbers(data.barbers ?? [])
-    } catch { /* silent */ }
+    } catch (e) {
+      setFetchError(String(e))
+    }
   }, [shopId])
 
   const fetchSettings = useCallback(async () => {
@@ -475,7 +483,11 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
             })}
           </AnimatePresence>
           {barbers.length === 0 && (
-            <p className="text-white/50 text-xl mt-8">No barbers on the floor today.</p>
+            <div className="text-white/60 text-base mt-8 space-y-1">
+              <p>No barbers on the floor today.</p>
+              <p className="text-xs text-white/30">shop_id: {shopId ?? '(none)'}</p>
+              {fetchError && <p className="text-red-400 text-xs break-all">{fetchError}</p>}
+            </div>
           )}
         </div>
       </div>
