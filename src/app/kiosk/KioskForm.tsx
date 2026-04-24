@@ -12,9 +12,11 @@ type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
 interface KioskFormProps {
   shopId?: string
+  initialBarberId?: string
+  initialPreference?: 'ANY' | 'PREFERRED'
 }
 
-export function KioskForm({ shopId }: KioskFormProps) {
+export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskFormProps) {
   const [barbers, setBarbers] = useState<KioskBarber[]>([])
 
   useEffect(() => {
@@ -31,8 +33,8 @@ export function KioskForm({ shopId }: KioskFormProps) {
   const [firstName, setFirstName] = useState('')
   const [lastInitial, setLastInitial] = useState('')
   const [phone, setPhone] = useState('')
-  const [preferenceType, setPreferenceType] = useState<'ANY' | 'PREFERRED'>('ANY')
-  const [preferredBarberId, setPreferredBarberId] = useState<string | null>(null)
+  const [preferenceType, setPreferenceType] = useState<'ANY' | 'PREFERRED'>(initialPreference ?? 'ANY')
+  const [preferredBarberId, setPreferredBarberId] = useState<string | null>(initialBarberId ?? null)
 
   // UI state
   const [screen, setScreen] = useState<Screen>('form')
