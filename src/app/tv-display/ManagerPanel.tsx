@@ -85,7 +85,7 @@ export function ManagerPanel({ shopId }: Props) {
     .filter((w) => w.status === 'WAITING')
     .sort((a, b) => a.position - b.position)
 
-  const eligibleBarbers = barbers.filter((b) => b.walkin_eligible && b.status !== 'OFF')
+  const eligibleBarbers = barbers.filter((b) => b.status !== 'OFF')
 
   return (
     <div className="min-h-screen bg-secondary-950 p-6 flex gap-6">
