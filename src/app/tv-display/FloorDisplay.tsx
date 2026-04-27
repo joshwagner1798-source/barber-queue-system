@@ -272,6 +272,21 @@ export function FloorDisplay({ backgroundUrl, shopId }: Props) {
           <p className="text-white/30 text-xs mt-3">Shop Hours: 9:00 AM – 7:00 PM</p>
         </div>
 
+        {/* QR code — links to the kiosk join page */}
+        <div className="flex flex-col items-center gap-2 border border-white/15 rounded-xl p-3 bg-black/40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent('https://getshopqueue.vercel.app/sharperimage/kiosk')}&color=FFFFFF&bgcolor=0d0d0d&margin=6`}
+            alt="Scan to join the queue"
+            width={160}
+            height={160}
+            className="rounded-md"
+          />
+          <p className="text-[10px] font-extrabold text-white/60 uppercase tracking-[0.18em] text-center leading-snug">
+            Scan to Join the Live Queue
+          </p>
+        </div>
+
         <div className="flex-1 overflow-y-auto">
           <p className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-3">
             Queue

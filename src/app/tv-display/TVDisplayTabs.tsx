@@ -13,9 +13,9 @@ interface Props {
 }
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'tv', label: 'TV Display' },
-  { id: 'kiosk', label: 'Kiosk' },
-  { id: 'settings', label: 'Owner Settings' },
+  { id: 'tv', label: 'Live Queue' },
+  { id: 'kiosk', label: 'Barbers' },
+  { id: 'settings', label: 'Settings' },
 ]
 
 export function TVDisplayTabs({ shopId, backgroundUrl }: Props) {

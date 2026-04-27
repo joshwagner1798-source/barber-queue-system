@@ -7,7 +7,7 @@ import { useMotionEnabled } from '@/hooks/useMotionEnabled'
 const STATUS_CONFIG: Record<string, { label: string; badge: string; glow: string }> = {
   AVAILABLE: { label: 'READY',    badge: 'bg-emerald-500 text-white',   glow: 'shadow-emerald-500/30' },
   IN_CHAIR:  { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
-  ON_BREAK:  { label: 'ON BREAK', badge: 'bg-blue-500   text-white',    glow: 'shadow-blue-500/30'    },
+  ON_BREAK:  { label: 'Appt Only', badge: 'bg-purple-600 text-white',    glow: 'shadow-purple-600/30'  },
   BLOCKED:   { label: 'BLOCKED',  badge: 'bg-red-600    text-white',    glow: 'shadow-red-600/40'     },
   CLEANUP:   { label: 'BUSY',     badge: 'bg-amber-500  text-white',    glow: 'shadow-amber-500/30'   },
   OFF:       { label: 'OFF',      badge: 'bg-zinc-600   text-zinc-300', glow: 'shadow-black/40'       },
