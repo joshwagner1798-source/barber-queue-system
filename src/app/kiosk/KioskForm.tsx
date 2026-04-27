@@ -4,19 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { submitWalkin, checkInWalkin, lookupByPhone } from '@/lib/kiosk/actions'
-import { formatWaitTime } from '@/lib/formatWaitTime'
 import type { KioskBarber } from '@/lib/kiosk/barbers'
-import type { KioskBookingSuggestion } from '@/lib/kiosk/types'
 
 type Screen = 'form' | 'confirmation' | 'existing' | 'checkedIn'
 
 interface KioskFormProps {
   shopId?: string
-  initialBarberId?: string
-  initialPreference?: 'ANY' | 'PREFERRED'
 }
 
-export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskFormProps) {
+export function KioskForm({ shopId }: KioskFormProps) {
   const [barbers, setBarbers] = useState<KioskBarber[]>([])
 
   useEffect(() => {
@@ -33,8 +29,8 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
   const [firstName, setFirstName] = useState('')
   const [lastInitial, setLastInitial] = useState('')
   const [phone, setPhone] = useState('')
-  const [preferenceType, setPreferenceType] = useState<'ANY' | 'PREFERRED'>(initialPreference ?? 'ANY')
-  const [preferredBarberId, setPreferredBarberId] = useState<string | null>(initialBarberId ?? null)
+  const [preferenceType, setPreferenceType] = useState<'ANY' | 'PREFERRED'>('ANY')
+  const [preferredBarberId, setPreferredBarberId] = useState<string | null>(null)
 
   // UI state
   const [screen, setScreen] = useState<Screen>('form')
@@ -47,9 +43,6 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
   const [existingStatus, setExistingStatus] = useState<string | null>(null)
   const [walkinId, setWalkinId] = useState<string | null>(null)
   const [assignedBarberName, setAssignedBarberName] = useState<string | null>(null)
-  const [bookingSuggestion, setBookingSuggestion] = useState<KioskBookingSuggestion | null>(null)
-  const [bookingBannerDismissed, setBookingBannerDismissed] = useState(false)
-
 
   // Auto-reset to form after 30s on non-form screens
   const resetToForm = useCallback(() => {
@@ -65,8 +58,6 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
     setExistingStatus(null)
     setWalkinId(null)
     setAssignedBarberName(null)
-    setBookingSuggestion(null)
-    setBookingBannerDismissed(false)
   }, [])
 
   useEffect(() => {
@@ -85,7 +76,6 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[Kiosk] handleSubmit fired', { firstName, lastInitial, phone })
     setError(null)
     setIsSubmitting(true)
 
@@ -97,7 +87,6 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
         preferenceType,
         preferredBarberId: preferenceType === 'PREFERRED' ? preferredBarberId : null,
       })
-      console.log('[Kiosk] submitWalkin result', result)
 
       if (!result.success) {
         setError(result.error ?? 'Something went wrong')
@@ -114,8 +103,6 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
         setScreen('existing')
       } else {
         setPosition(result.position ?? null)
-        setBookingSuggestion(result.bookingSuggestion ?? null)
-        setBookingBannerDismissed(false)
         setScreen('confirmation')
       }
     } catch {
@@ -150,7 +137,7 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
     setIsSubmitting(true)
     setError(null)
     try {
-      const result = await lookupByPhone(phone, shopId)
+      const result = await lookupByPhone(phone)
       if (result.found && result.walkin) {
         setWalkinId(result.walkin.id)
         setDisplayName(result.walkin.displayName)
@@ -172,11 +159,8 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
   // Confirmation screen
   // -----------------------------------------------------------------------
   if (screen === 'confirmation') {
-    const showBanner =
-      bookingSuggestion?.should_suggest === true && !bookingBannerDismissed
-
     return (
-      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
         <div className="text-6xl mb-4">&#10003;</div>
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           You&apos;re in line!
@@ -185,47 +169,9 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
           <span className="font-semibold text-secondary-900">{displayName}</span>,
           you are <span className="font-bold text-primary-600">#{position}</span> in the queue.
         </p>
-        <p className="text-sm text-secondary-500 mb-6">
+        <p className="text-sm text-secondary-500 mb-8">
           Watch the TV for your name. The screen will reset shortly.
         </p>
-
-        {/* Booking nudge banner — shown when estimated wait >= 45 min */}
-        {showBanner && bookingSuggestion && (
-          <div className="w-full mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-amber-900 mb-1">
-                  {formatWaitTime(bookingSuggestion.estimated_wait_minutes, bookingSuggestion.earliest_slot?.start)}
-                </p>
-                <p className="text-xs text-amber-700 mb-3">
-                  Want to book a future appointment instead?
-                  {bookingSuggestion.earliest_slot && (
-                    <> Next opening: {bookingSuggestion.earliest_slot.barber_name} at{' '}
-                      {new Date(bookingSuggestion.earliest_slot.start).toLocaleTimeString('en-US', {
-                        hour: 'numeric', minute: '2-digit', hour12: true,
-                      })}
-                    </>
-                  )}
-                </p>
-                <a
-                  href={bookingSuggestion.booking_url ?? '/book'}
-                  className="inline-block text-xs font-semibold text-amber-900 bg-amber-200 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  Book an Appointment &#8594;
-                </a>
-              </div>
-              <button
-                type="button"
-                onClick={() => setBookingBannerDismissed(true)}
-                aria-label="Dismiss"
-                className="text-amber-400 hover:text-amber-600 text-lg leading-none flex-shrink-0 mt-0.5"
-              >
-                &#215;
-              </button>
-            </div>
-          </div>
-        )}
-
         <Button variant="outline" onClick={resetToForm}>
           Done
         </Button>
@@ -245,7 +191,7 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
           : `#${position} in line`
 
     return (
-      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           Welcome back, {displayName}!
         </h2>
@@ -288,7 +234,7 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
   // -----------------------------------------------------------------------
   if (screen === 'checkedIn') {
     return (
-      <div className="w-full bg-white min-h-screen flex flex-col items-center justify-center p-6 text-center sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
         <div className="text-6xl mb-4">&#128136;</div>
         <h2 className="text-2xl font-bold text-secondary-900 mb-2">
           You&apos;re checked in!
@@ -307,7 +253,7 @@ export function KioskForm({ shopId, initialBarberId, initialPreference }: KioskF
   // Main form screen
   // -----------------------------------------------------------------------
   return (
-    <div className="w-full bg-white min-h-screen p-6 sm:min-h-0 sm:max-w-md sm:mx-auto sm:rounded-2xl sm:shadow-xl sm:p-8">
+    <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
       <h1 className="text-3xl font-bold text-secondary-900 text-center mb-2">
         Walk-In Sign Up
       </h1>
